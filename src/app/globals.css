@@ -1,0 +1,144 @@
+@import "tailwindcss";
+@import "shadcn/tailwind.css";
+@import "../styles/tokens.css";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-sans);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius);
+  --radius-xl: var(--radius);
+  --radius-2xl: var(--radius);
+  --radius-3xl: var(--radius);
+  --radius-4xl: var(--radius);
+
+  /* Mission First palette exposed to Tailwind (bg-mf-*, text-mf-*, border-mf-*) */
+  --color-mf-surface-0: var(--mf-surface-0);
+  --color-mf-surface-1: var(--mf-surface-1);
+  --color-mf-border: var(--mf-border);
+  --color-mf-gridline: var(--mf-gridline);
+  --color-mf-text-1: var(--mf-text-1);
+  --color-mf-text-2: var(--mf-text-2);
+  --color-mf-sidebar: var(--mf-sidebar-bg);
+  --color-mf-accent: var(--mf-accent);
+  --color-mf-accent-hover: var(--mf-accent-hover);
+  --color-mf-critical: var(--mf-critical);
+  --color-mf-warning: var(--mf-warning);
+  --color-mf-done: var(--mf-done);
+  --color-mf-progress: var(--mf-progress);
+  --color-mf-neutral: var(--mf-neutral);
+}
+
+/* shadcn theme overridden to the Mission First tokens (BRIEF §6) */
+:root {
+  --background: var(--mf-surface-1);
+  --foreground: var(--mf-text-1);
+  --card: var(--mf-surface-0);
+  --card-foreground: var(--mf-text-1);
+  --popover: var(--mf-surface-0);
+  --popover-foreground: var(--mf-text-1);
+  --primary: var(--mf-accent);
+  --primary-foreground: #ffffff;
+  --secondary: var(--mf-surface-1);
+  --secondary-foreground: var(--mf-text-1);
+  --muted: var(--mf-surface-1);
+  --muted-foreground: var(--mf-text-2);
+  --accent: #e8eef4;
+  --accent-foreground: var(--mf-text-1);
+  --destructive: var(--mf-critical);
+  --border: var(--mf-border);
+  --input: var(--mf-border);
+  --ring: var(--mf-accent);
+  --radius: var(--mf-radius);
+  --sidebar: var(--mf-sidebar-bg);
+  --sidebar-foreground: var(--mf-sidebar-text);
+  --sidebar-primary: var(--mf-accent);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #27364a;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #2c3b50;
+  --sidebar-ring: var(--mf-accent);
+  --chart-1: var(--mf-accent);
+  --chart-2: var(--mf-critical);
+  --chart-3: var(--mf-done);
+  --chart-4: var(--mf-warning);
+  --chart-5: var(--mf-neutral);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  html {
+    @apply font-sans;
+  }
+  ::selection {
+    background: #cddcea;
+  }
+}
+
+@layer components {
+  /* Flat panel with 28px header strip */
+  .mf-panel {
+    background: var(--mf-surface-0);
+    border: 1px solid var(--mf-border);
+    border-radius: var(--mf-radius);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .mf-panel-header {
+    height: var(--mf-panel-header-h);
+    min-height: var(--mf-panel-header-h);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 8px;
+    border-bottom: 1px solid var(--mf-border);
+    background: #fafbfc;
+  }
+  .mf-panel-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--mf-text-1);
+    white-space: nowrap;
+  }
+  /* 11px uppercase heading */
+  .mf-heading {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .mf-mono {
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+}

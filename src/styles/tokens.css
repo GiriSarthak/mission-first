@@ -1,0 +1,38 @@
+/* Mission First design tokens — BRIEF §6 (Primavera P6-inspired) */
+:root {
+  /* Surfaces */
+  --mf-surface-0: #ffffff;
+  --mf-surface-1: #f4f5f7;
+  --mf-border: #d0d4da;
+  --mf-gridline: #e9ebef;
+
+  /* Text */
+  --mf-text-1: #1f2430;
+  --mf-text-2: #5b6472;
+
+  /* Chrome */
+  --mf-sidebar-bg: #1e2a3a;
+  --mf-sidebar-text: #aeb9c8;
+  --mf-sidebar-text-active: #ffffff;
+
+  /* Accent — steel blue: links, selected rows, planned bars, primary buttons */
+  --mf-accent: #2f5f8f;
+  --mf-accent-hover: #27507a;
+
+  /* Status colours — the only saturated colours */
+  --mf-critical: #c0392b;
+  --mf-warning: #b7791f;
+  --mf-done: #2e7d4f;
+  --mf-progress: #2f5f8f;
+  --mf-neutral: #8a94a6;
+
+  /* Layout metrics */
+  --mf-sidebar-w: 240px;
+  --mf-toolbar-h: 36px;
+  --mf-panel-header-h: 28px;
+  --mf-row-h: 27px;
+  --mf-input-h: 26px;
+
+  /* Radius: corners <= 2px */
+  --mf-radius: 2px;
+}

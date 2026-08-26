@@ -1,0 +1,9 @@
+// Mission First — Prisma schema (SQLite for the demo, kept Postgres-compatible)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
