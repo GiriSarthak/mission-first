@@ -4,7 +4,12 @@
  * processing. No queue infrastructure.
  */
 import { db } from "@/lib/db";
-import { processDocumentText } from "@/lib/jobs/process-document";
+import {
+  finalizeExtraction,
+  runExtractionUnit,
+  startDocumentPipeline,
+  type ExtractionUnit,
+} from "@/lib/jobs/extraction";
 
 export type RunResult =
   | { processed: false }
@@ -40,6 +45,7 @@ async function dispatch(
   projectId: string
 ): Promise<void> {
   const payload = JSON.parse(payloadJson || "{}") as Record<string, unknown>;
+  void projectId;
   switch (type) {
     case "PROCESS_DOCUMENT": {
       const documentId = String(payload.documentId ?? "");
@@ -47,14 +53,18 @@ async function dispatch(
         where: { id: documentId },
         data: { processingStatus: "PROCESSING", processingError: null },
       });
-      await processDocumentText(documentId);
-      // Milestone 8 extends this job with AI extraction + changeset creation.
-      await db.document.update({
-        where: { id: documentId },
-        data: { processingStatus: "DONE" },
-      });
-      void jobId;
-      void projectId;
+      await startDocumentPipeline(documentId, jobId);
+      return;
+    }
+    case "EXTRACT_UNIT": {
+      await runExtractionUnit(
+        payload as { documentId: string; changesetId: string; unit: ExtractionUnit },
+        jobId
+      );
+      return;
+    }
+    case "FINALIZE_EXTRACTION": {
+      await finalizeExtraction(payload as { documentId: string; changesetId: string });
       return;
     }
     default:
@@ -63,7 +73,8 @@ async function dispatch(
 }
 
 async function onJobFailed(type: string, payloadJson: string, message: string): Promise<void> {
-  if (type === "PROCESS_DOCUMENT") {
+  // EXTRACT_UNIT failures are tolerated — finalize reports skipped sections.
+  if (type === "PROCESS_DOCUMENT" || type === "FINALIZE_EXTRACTION") {
     const payload = JSON.parse(payloadJson || "{}") as { documentId?: string };
     if (payload.documentId) {
       await db.document

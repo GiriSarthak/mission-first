@@ -51,6 +51,7 @@ export default async function DocumentsPage({
             id: m.id,
             role: m.role,
             content: m.content,
+            changesetId: m.changesetId,
             createdAt: m.createdAt.toISOString(),
           }))}
         />

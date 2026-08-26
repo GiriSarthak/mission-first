@@ -66,5 +66,15 @@ export async function POST(
     created.push({ id: doc.id, filename: doc.filename, pageCount });
   }
 
+  const names = created.map((c) => c.filename).join(", ");
+  await db.chatMessage.create({
+    data: {
+      projectId,
+      role: "USER",
+      documentId: created[0]?.id,
+      content: description ? `Uploaded ${names} — ${description}` : `Uploaded ${names}`,
+    },
+  });
+
   return NextResponse.json({ documents: created });
 }
