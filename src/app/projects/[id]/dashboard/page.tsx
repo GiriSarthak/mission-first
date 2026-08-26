@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { ChecklistPanel } from "@/components/dashboard/checklist-panel";
 import { ObligationsPanel } from "@/components/dashboard/obligations-panel";
 import { InsightsPanel } from "@/components/dashboard/insights-panel";
+import { SchedulePanel } from "@/components/schedule/schedule-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,9 @@ export default async function DashboardPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [phases, obligations, insights] = await Promise.all([
+  const [project, phases, obligations, insights, activities, links] =
+    await Promise.all([
+      db.project.findUnique({ where: { id } }),
     db.checklistPhase.findMany({
       where: { projectId: id },
       orderBy: { sortOrder: "asc" },
@@ -26,6 +29,10 @@ export default async function DashboardPage({
     db.insight.findMany({
       where: { projectId: id, status: "OPEN" },
       orderBy: { createdAt: "asc" },
+    }),
+    db.activity.findMany({ where: { projectId: id }, orderBy: { code: "asc" } }),
+    db.activityLink.findMany({
+      where: { predecessor: { projectId: id } },
     }),
   ]);
 
@@ -99,15 +106,31 @@ export default async function DashboardPage({
         }))}
       />
 
-      {/* Row 3 — Schedule views arrive in milestone 5 */}
-      <div className="mf-panel">
-        <div className="mf-panel-header">
-          <span className="mf-panel-title">Schedule</span>
-        </div>
-        <div className="p-4 text-[12px] text-mf-text-2">
-          Gantt, PERT network, and activity table arrive in milestone 5.
-        </div>
-      </div>
+      <SchedulePanel
+        projectId={id}
+        contractStart={project?.contractStart?.toISOString() ?? null}
+        contractDurationDays={project?.contractDurationDays ?? null}
+        initialActivities={activities.map((a) => ({
+          id: a.id,
+          code: a.code,
+          name: a.name,
+          wbsPath: a.wbsPath,
+          optimistic: a.optimistic,
+          mostLikely: a.mostLikely,
+          pessimistic: a.pessimistic,
+          actualStart: a.actualStart?.toISOString() ?? null,
+          actualFinish: a.actualFinish?.toISOString() ?? null,
+          percentComplete: a.percentComplete,
+          remainingDays: a.remainingDays,
+        }))}
+        initialLinks={links.map((l) => ({
+          id: l.id,
+          predecessorId: l.predecessorId,
+          successorId: l.successorId,
+          type: l.type,
+          lagDays: l.lagDays,
+        }))}
+      />
     </div>
   );
 }
