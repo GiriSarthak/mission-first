@@ -4,6 +4,15 @@ import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { INSIGHT_STATUSES, type InsightStatus } from "@/lib/enums";
 
+export async function requestInsightsRegeneration(
+  projectId: string
+): Promise<{ jobId: string }> {
+  const job = await db.job.create({
+    data: { projectId, type: "GENERATE_INSIGHTS", payload: "{}" },
+  });
+  return { jobId: job.id };
+}
+
 export async function updateInsightStatus(
   insightId: string,
   status: InsightStatus

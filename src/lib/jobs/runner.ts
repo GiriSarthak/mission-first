@@ -67,6 +67,11 @@ async function dispatch(
       await finalizeExtraction(payload as { documentId: string; changesetId: string });
       return;
     }
+    case "GENERATE_INSIGHTS": {
+      const { generateInsights } = await import("@/lib/insights/generate");
+      await generateInsights(projectId, jobId);
+      return;
+    }
     default:
       throw new Error(`Unknown job type: ${type}`);
   }

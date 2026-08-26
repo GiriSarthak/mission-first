@@ -1,9 +1,13 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Check, RefreshCw, X } from "lucide-react";
-import { updateInsightStatus } from "@/lib/actions/insights";
+import {
+  requestInsightsRegeneration,
+  updateInsightStatus,
+} from "@/lib/actions/insights";
 import { citation, severityColor } from "@/components/status";
 
 export type InsightRow = {
@@ -21,25 +25,57 @@ export type InsightRow = {
 export function InsightsPanel({
   projectId,
   insights,
-  onRegenerate,
-  regenerating,
 }: {
   projectId: string;
   insights: InsightRow[];
-  onRegenerate?: () => void;
-  regenerating?: boolean;
 }) {
   const [, startTransition] = useTransition();
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenError, setRegenError] = useState<string | null>(null);
+  const router = useRouter();
+
+  async function regenerate() {
+    setRegenerating(true);
+    setRegenError(null);
+    try {
+      const { jobId } = await requestInsightsRegeneration(projectId);
+      // drive the job runner and wait for this job to finish
+      for (let i = 0; i < 60; i++) {
+        await fetch("/api/jobs/run", { method: "POST" }).catch(() => {});
+        const res = await fetch(`/api/jobs/${jobId}`, { cache: "no-store" });
+        if (res.ok) {
+          const job = (await res.json()) as { status: string; error: string | null };
+          if (job.status === "DONE") {
+            router.refresh();
+            return;
+          }
+          if (job.status === "FAILED") {
+            setRegenError(job.error ?? "Insights generation failed.");
+            return;
+          }
+        }
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+      setRegenError("Insights generation timed out.");
+    } finally {
+      setRegenerating(false);
+    }
+  }
 
   return (
     <div className="mf-panel">
       <div className="mf-panel-header">
         <span className="mf-panel-title">AI Insights</span>
+        {regenError && (
+          <span className="ml-2 truncate text-[10px] text-mf-critical" title={regenError}>
+            {regenError}
+          </span>
+        )}
         <button
           type="button"
-          disabled={!onRegenerate || regenerating}
-          onClick={() => onRegenerate?.()}
-          title={onRegenerate ? "Regenerate insights" : "Regenerate (available in milestone 9)"}
+          disabled={regenerating}
+          onClick={regenerate}
+          title="Regenerate insights from the current project state"
           className="ml-auto flex items-center gap-1 border border-mf-border bg-white px-1.5 py-px text-[10px] text-mf-text-2 hover:bg-mf-surface-1 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <RefreshCw className={regenerating ? "size-3 animate-spin" : "size-3"} />

@@ -1,10 +1,17 @@
 "use client";
 
-import { useMemo, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { Mail } from "lucide-react";
+import { Copy, Loader2, Mail } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { OBLIGATION_STATUSES, type ObligationStatus } from "@/lib/enums";
 import { setEscalationLevel, updateObligationStatus } from "@/lib/actions/obligations";
+import { draftEscalationLetter } from "@/lib/actions/letters";
 import { citation } from "@/components/status";
 import { StatusSelect } from "@/components/dashboard/status-select";
 import { formatDate } from "@/lib/format";
@@ -24,13 +31,25 @@ export type ObligationRow = {
 export function ObligationsPanel({
   projectId,
   obligations,
-  onDraftLetter,
 }: {
   projectId: string;
   obligations: ObligationRow[];
-  onDraftLetter?: (obligationId: string) => void;
 }) {
   const [, startTransition] = useTransition();
+  const [letterFor, setLetterFor] = useState<ObligationRow | null>(null);
+  const [letter, setLetter] = useState<string | null>(null);
+  const [letterError, setLetterError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  async function openLetter(o: ObligationRow) {
+    setLetterFor(o);
+    setLetter(null);
+    setLetterError(null);
+    setCopied(false);
+    const res = await draftEscalationLetter(o.id);
+    if ("error" in res) setLetterError(res.error);
+    else setLetter(res.letter);
+  }
   const today = useMemo(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -98,14 +117,9 @@ export function ObligationsPanel({
                       />
                       <button
                         type="button"
-                        title={
-                          onDraftLetter
-                            ? "Draft escalation letter"
-                            : "Draft escalation letter (available in milestone 9)"
-                        }
-                        disabled={!onDraftLetter}
-                        onClick={() => onDraftLetter?.(o.id)}
-                        className="ml-1 text-mf-text-2 hover:text-mf-accent disabled:cursor-not-allowed disabled:opacity-40"
+                        title="Draft escalation letter"
+                        onClick={() => void openLetter(o)}
+                        className="ml-1 text-mf-text-2 hover:text-mf-accent"
                       >
                         <Mail className="size-3.5" />
                       </button>
@@ -117,6 +131,48 @@ export function ObligationsPanel({
           </tbody>
         </table>
       </div>
+
+      {/* escalation letter modal — draft only, copy to send elsewhere */}
+      <Dialog open={letterFor != null} onOpenChange={(o) => !o && setLetterFor(null)}>
+        <DialogContent className="max-w-xl rounded-[2px] p-0">
+          <DialogHeader className="border-b border-mf-border px-3 py-2">
+            <DialogTitle className="mf-heading text-mf-text-1">
+              Escalation letter — {letterFor?.title}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[60vh] min-h-32 overflow-auto px-3 py-2">
+            {letterError ? (
+              <div className="text-[11px] text-mf-critical">{letterError}</div>
+            ) : letter ? (
+              <pre className="font-mono text-[11px] leading-4.5 whitespace-pre-wrap text-mf-text-1">
+                {letter}
+              </pre>
+            ) : (
+              <div className="flex items-center gap-2 text-[11px] text-mf-text-2">
+                <Loader2 className="size-3 animate-spin" /> Drafting…
+              </div>
+            )}
+          </div>
+          <div className="flex items-center justify-end gap-2 border-t border-mf-border px-3 py-2">
+            <span className="mr-auto text-[10px] text-mf-text-2">
+              Draft only — nothing is sent.
+            </span>
+            <button
+              type="button"
+              disabled={!letter}
+              onClick={async () => {
+                if (!letter) return;
+                await navigator.clipboard.writeText(letter);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              }}
+              className="flex items-center gap-1 border border-mf-accent bg-mf-accent px-2 py-1 text-[11px] text-white hover:bg-mf-accent-hover disabled:opacity-50"
+            >
+              <Copy className="size-3" /> {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
