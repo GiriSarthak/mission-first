@@ -24,6 +24,22 @@ Demo of an EPC tender-intelligence app: ingest a government tender bundle, extra
 
 12px base font, 26–28px rows, 28px panel headers, 8px grid. Inter UI / JetBrains Mono for IDs, dates, clauses, numerics. Headings 11px uppercase letterspaced. Surfaces `#ffffff`/`#f4f5f7`, borders `#d0d4da`, sidebar `#1e2a3a`, accent steel blue `#2f5f8f`; status colours are the only saturated colours. No gradients, no shadows, radius ≤ 2px, no emoji, no illustrations. All values live in `src/styles/tokens.css` as `--mf-*` variables, exposed to Tailwind as `mf-*` colors; use `.mf-panel`, `.mf-panel-header`, `.mf-heading`, `.mf-mono` helpers.
 
+## Extraction pipeline (milestone 8)
+
+Document processing fans out over the Job table (FIFO): `PROCESS_DOCUMENT`
+(text extraction via unpdf, light-model classification, chat ack, changeset
+shell) → one `EXTRACT_UNIT` per ≤40-page text section or ≤18-page scanned chunk
+(scanned chunks return transcription + items in one heavy call; transcriptions
+are stored to DocumentPage) → `FINALIZE_EXTRACTION` (title dedupe, optional
+`proposeActivities` WBS call when a scope-ish doc yields <3 activities, summary
++ review-card chat message). `applyChangeset` in
+`src/lib/actions/changesets.ts` is the only path from proposal to real records.
+
+**Status:** end-to-end API test on the two sample files is still pending — the
+Anthropic account had no credits during the build. Run both samples through
+the Documents page (upload or Reprocess) once credits exist; `scripts/verify-ai.ts`
+is the trivial connectivity check.
+
 ## Conventions
 
 - Dates render P6-style (`26-Aug-26`) via `formatDate` in `src/lib/format.ts`.
