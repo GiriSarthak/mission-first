@@ -1,4 +1,7 @@
-// Mission First — Prisma schema (SQLite for the demo, kept Postgres-compatible)
+// Mission First — Prisma schema (SQLite for the demo, kept Postgres-compatible).
+// SQLite has no native enums, so enum-like fields are String; the allowed
+// values live as TS union types in src/lib/enums.ts.
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -6,4 +9,221 @@ generator client {
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
+}
+
+model Project {
+  id                   String    @id @default(cuid())
+  name                 String
+  tenderRef            String
+  agencyName           String
+  contractValue        Float?
+  contractStart        DateTime?
+  contractDurationDays Int?
+  createdAt            DateTime  @default(now())
+
+  documents    Document[]
+  phases       ChecklistPhase[]
+  obligations  Obligation[]
+  activities   Activity[]
+  insights     Insight[]
+  changesets   Changeset[]
+  chatMessages ChatMessage[]
+  jobs         Job[]
+}
+
+model Document {
+  id               String   @id @default(cuid())
+  projectId        String
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  filename         String
+  storagePath      String
+  docType          String   @default("OTHER") // TENDER_NIT | GCC | SCC | SOW | BOQ | TECH_SPEC | DRAWING | CORRESPONDENCE | OTHER
+  isScanned        Boolean  @default(false)
+  pageCount        Int      @default(0)
+  processingStatus String   @default("PENDING") // PENDING | PROCESSING | DONE | FAILED
+  processingError  String?
+  userDescription  String?
+  uploadedAt       DateTime @default(now())
+
+  pages          DocumentPage[]
+  checklistItems ChecklistItem[]
+  obligations    Obligation[]
+  activities     Activity[]
+  insights       Insight[]
+  changesets     Changeset[]
+  chatMessages   ChatMessage[]
+}
+
+model DocumentPage {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  pageNumber Int
+  text       String
+
+  @@unique([documentId, pageNumber])
+}
+
+model ChecklistPhase {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  key       String // PRE_BID | BID_SUBMISSION | POST_AWARD | SOW | EXECUTION | CLOSEOUT
+  title     String
+  sortOrder Int
+
+  items ChecklistItem[]
+
+  @@unique([projectId, key])
+}
+
+model ChecklistItem {
+  id               String         @id @default(cuid())
+  phaseId          String
+  phase            ChecklistPhase @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+  title            String
+  description      String?
+  status           String         @default("NOT_STARTED") // NOT_STARTED | IN_PROGRESS | DONE | BLOCKED | NA
+  dueDate          DateTime?
+  ownerRole        String?
+  sourceType       String         @default("MANUAL") // AI | MANUAL
+  sourceDocumentId String?
+  sourceDocument   Document?      @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  sourcePage       Int?
+  sourceClause     String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+model Obligation {
+  id               String    @id @default(cuid())
+  projectId        String
+  project          Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title            String
+  description      String?
+  owedBy           String    @default("AGENCY") // AGENCY | VENDOR
+  contractClause   String?
+  sourceDocumentId String?
+  sourceDocument   Document? @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  sourcePage       Int?
+  stipulatedDays   Int?
+  requestedOn      DateTime?
+  dueOn            DateTime?
+  receivedOn       DateTime?
+  status           String    @default("PENDING") // PENDING | REQUESTED | OVERDUE | RECEIVED | WAIVED
+  escalationLevel  Int       @default(0)
+}
+
+model Activity {
+  id               String    @id @default(cuid())
+  projectId        String
+  project          Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  code             String
+  name             String
+  wbsPath          String?
+  optimistic       Float?
+  mostLikely       Float
+  pessimistic      Float?
+  actualStart      DateTime?
+  actualFinish     DateTime?
+  percentComplete  Int       @default(0)
+  remainingDays    Float?
+  sourceType       String    @default("MANUAL") // AI | MANUAL
+  sourceDocumentId String?
+  sourceDocument   Document? @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  sourcePage       Int?
+
+  predecessors ActivityLink[] @relation("successor")
+  successors   ActivityLink[] @relation("predecessor")
+
+  @@unique([projectId, code])
+}
+
+model ActivityLink {
+  id            String   @id @default(cuid())
+  predecessorId String
+  predecessor   Activity @relation("predecessor", fields: [predecessorId], references: [id], onDelete: Cascade)
+  successorId   String
+  successor     Activity @relation("successor", fields: [successorId], references: [id], onDelete: Cascade)
+  type          String   @default("FS") // FS | SS | FF | SF
+  lagDays       Float    @default(0)
+
+  @@unique([predecessorId, successorId, type])
+}
+
+model Insight {
+  id                String    @id @default(cuid())
+  projectId         String
+  project           Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title             String
+  body              String
+  severity          String    @default("INFO") // INFO | WARNING | CRITICAL
+  category          String    @default("SCHEDULE") // SCHEDULE | COMPLIANCE | OBLIGATION | DOCUMENT
+  relatedEntityType String?
+  relatedEntityId   String?
+  sourceDocumentId  String?
+  sourceDocument    Document? @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  sourcePage        Int?
+  status            String    @default("OPEN") // OPEN | DISMISSED | DONE
+  createdAt         DateTime  @default(now())
+}
+
+model Changeset {
+  id         String    @id @default(cuid())
+  projectId  String
+  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  documentId String?
+  document   Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  status     String    @default("PROPOSED") // PROPOSED | ACCEPTED | REJECTED | PARTIAL
+  summary    String
+  createdAt  DateTime  @default(now())
+
+  items ChangesetItem[]
+}
+
+model ChangesetItem {
+  id          String    @id @default(cuid())
+  changesetId String
+  changeset   Changeset @relation(fields: [changesetId], references: [id], onDelete: Cascade)
+  entityType  String // CHECKLIST_ITEM | OBLIGATION | ACTIVITY | INSIGHT
+  payload     String // JSON
+  accepted    Boolean?
+}
+
+model ChatMessage {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  role        String // USER | ASSISTANT
+  content     String
+  documentId  String?
+  document    Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  changesetId String?
+  createdAt   DateTime  @default(now())
+}
+
+model Job {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type      String
+  status    String   @default("PENDING") // PENDING | RUNNING | DONE | FAILED
+  payload   String   @default("{}")
+  error     String?
+  createdAt DateTime @default(now())
+
+  aiCalls AiCallLog[]
+}
+
+model AiCallLog {
+  id           String   @id @default(cuid())
+  projectId    String?
+  jobId        String?
+  job          Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  purpose      String
+  model        String
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  latencyMs    Int      @default(0)
+  createdAt    DateTime @default(now())
 }

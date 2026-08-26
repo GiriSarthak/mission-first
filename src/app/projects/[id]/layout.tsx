@@ -1,15 +1,10 @@
+import { notFound } from "next/navigation";
 import { NavLinks } from "@/components/shell/nav-links";
-import {
-  ProjectSelector,
-  type ProjectSummary,
-} from "@/components/shell/project-selector";
+import { ProjectSelector } from "@/components/shell/project-selector";
 import { Toolbar } from "@/components/shell/toolbar";
 import { formatDate } from "@/lib/format";
-
-// Replaced with real DB access in milestone 2.
-async function getProjects(): Promise<ProjectSummary[]> {
-  return [];
-}
+import { db } from "@/lib/db";
+import { createProject } from "@/lib/actions/projects";
 
 export default async function ProjectLayout({
   children,
@@ -19,8 +14,12 @@ export default async function ProjectLayout({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const projects = await getProjects();
+  const projects = await db.project.findMany({
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true, tenderRef: true },
+  });
   const current = projects.find((p) => p.id === id);
+  if (!current) notFound();
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -31,15 +30,16 @@ export default async function ProjectLayout({
           </div>
         </div>
         <div className="px-3">
-          <ProjectSelector projects={projects} currentId={id} />
+          <ProjectSelector
+            projects={projects}
+            currentId={id}
+            onCreateProject={createProject}
+          />
         </div>
         <NavLinks projectId={id} />
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <Toolbar
-          projectName={current?.name ?? "Project"}
-          dataDate={formatDate(new Date())}
-        />
+        <Toolbar projectName={current.name} dataDate={formatDate(new Date())} />
         <main className="min-h-0 flex-1 overflow-auto">{children}</main>
       </div>
     </div>
