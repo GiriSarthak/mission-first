@@ -59,6 +59,7 @@ export const INSIGHT_CATEGORIES = [
   "COMPLIANCE",
   "OBLIGATION",
   "DOCUMENT",
+  "TIME_COST", // delay vs LD exposure narration (Phase 2 Part B)
 ] as const;
 export type InsightCategory = (typeof INSIGHT_CATEGORIES)[number];
 

@@ -103,6 +103,11 @@ export function InsightsPanel({
                 <span className="text-[12px] font-medium text-mf-text-1">{ins.title}</span>
                 <span className="ml-2 text-[11px] text-mf-text-2">{ins.body}</span>
               </div>
+              {ins.category === "TIME_COST" && (
+                <span className="mf-mono shrink-0 border border-mf-border px-1 text-[9px] tracking-wide text-mf-text-2 uppercase">
+                  time &amp; cost
+                </span>
+              )}
               {ins.relatedEntityType === "ACTIVITY" && (
                 <span className="mf-mono shrink-0 text-[10px] text-mf-text-2">schedule</span>
               )}

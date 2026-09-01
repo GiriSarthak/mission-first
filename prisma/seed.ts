@@ -579,6 +579,14 @@ async function main() {
       },
       {
         projectId: project.id,
+        title: "38-day forecast delay carries ₹61.65 L in liquidated damages",
+        body: "Forecast finish 03-Dec-27 against a contract date of 26-Oct-27; 25 of the 38 days trace to the overdue SECL equipment supply blocking transformer erection on the critical path, leaving 13 days vendor-side. Exposure is ₹61.65 L against a ₹2.27 Cr cap — pursue the equipment despatch before the gap widens.",
+        severity: "CRITICAL",
+        category: "TIME_COST",
+        status: "OPEN",
+      },
+      {
+        projectId: project.id,
         title: "Two post-award submissions still open past their due date",
         body: "Labour licence and personnel list (clause 30.5 — due within 30 days of LOA) remain in progress. Close them out to avoid a compliance observation at the next review.",
         severity: "WARNING",
@@ -771,6 +779,17 @@ async function seedSecondProject(agencyOrgId: string, vendorOrgId: string) {
       requestedOn: daysAgo(9),
       stipulatedDays: 30,
       dueOn: day(30, daysAgo(9)),
+    },
+  });
+
+  await db.insight.create({
+    data: {
+      projectId: project.id,
+      title: "15-day delay carries ₹5.21 L exposure, roughly half agency-side",
+      body: "Forecast finish runs 15 days past the contract date; 7 days trace to the overdue protection drawing approval on the critical path and 8 days sit vendor-side. Exposure is ₹5.21 L against a ₹48.60 L cap.",
+      severity: "WARNING",
+      category: "TIME_COST",
+      status: "OPEN",
     },
   });
 

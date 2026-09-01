@@ -17,6 +17,12 @@ import {
   GenerateInsightsSchema,
 } from "@/lib/ai/prompts/generate-insights";
 import { formatDate, daysBetween } from "@/lib/format";
+import { computeDelayCost, formatInr } from "@/lib/analysis/delayCost";
+import { computeProjectDelayCost } from "@/lib/analysis/snapshot";
+import {
+  delayCostInsightPrompt,
+  DelayCostInsightSchema,
+} from "@/lib/ai/prompts/delay-cost-insight";
 
 export async function buildInsightsSnapshot(projectId: string): Promise<object> {
   const today = new Date();
@@ -112,6 +118,18 @@ export async function buildInsightsSnapshot(projectId: string): Promise<object> 
       }))
   );
 
+  const delayCost = computeDelayCost({
+    contractStart: project.contractStart,
+    contractDurationDays: project.contractDurationDays,
+    contractValue: project.contractValue,
+    ldWeeklyRatePct: project.ldWeeklyRatePct,
+    ldCapPct: project.ldCapPct,
+    forecastFinishOffset: result.ok ? result.projectFinish : null,
+    criticalActivityIds: result.ok ? result.criticalPath : [],
+    obligations,
+    today,
+  });
+
   const schedule = result.ok
     ? {
         projectFinishDate: formatDate(offsetToDate(result.projectFinish, projectStart)),
@@ -160,8 +178,79 @@ export async function buildInsightsSnapshot(projectId: string): Promise<object> 
     pendingAgencyObligations: pendingAgency,
     blockedOrOverdueChecklistItems: problemChecklist,
     schedule,
+    delayAndCost: {
+      delayDays: delayCost.delayDays,
+      ldExposure: formatInr(delayCost.ldExposure),
+      ldCap: formatInr(delayCost.ldCapAmount),
+      ldCapReached: delayCost.ldCapReached,
+      agencyAttributableDays: delayCost.agencyAttributableDays,
+      vendorAttributableDays: delayCost.vendorAttributableDays,
+      agencyAttributablePct: Math.round(delayCost.agencyAttributablePct),
+    },
     lastInsightsGeneratedAt: lastInsight ? formatDate(lastInsight.createdAt) : null,
   };
+}
+
+/**
+ * Phase 2 Part B — one narrated Insight row for the delay/cost position.
+ * The numbers come from computeDelayCost; the model only writes the sentence.
+ * Lives with the other insights rather than in its own box.
+ */
+export async function generateDelayCostInsight(
+  projectId: string,
+  jobId?: string
+): Promise<boolean> {
+  const project = await db.project.findUniqueOrThrow({ where: { id: projectId } });
+  const delayCost = await computeProjectDelayCost(projectId);
+  if (!delayCost || !delayCost.contractFinishDate || !delayCost.forecastFinishDate) {
+    return false;
+  }
+
+  const narration = await completeJson(
+    DelayCostInsightSchema,
+    [
+      {
+        role: "user",
+        content: delayCostInsightPrompt({
+          delayDays: delayCost.delayDays,
+          contractFinishDate: formatDate(delayCost.contractFinishDate),
+          forecastFinishDate: formatDate(delayCost.forecastFinishDate),
+          ldExposureFormatted: formatInr(delayCost.ldExposure),
+          ldCapFormatted: formatInr(delayCost.ldCapAmount),
+          ldCapReached: delayCost.ldCapReached,
+          ldWeeklyRatePct: project.ldWeeklyRatePct,
+          ldCapPct: project.ldCapPct,
+          agencyAttributableDays: delayCost.agencyAttributableDays,
+          vendorAttributableDays: delayCost.vendorAttributableDays,
+          agencyAttributablePct: Math.round(delayCost.agencyAttributablePct),
+          drivers: delayCost.drivers.map((d) => ({
+            title: d.title,
+            overdueDays: d.overdueDays,
+            attributedDays: d.attributedDays,
+          })),
+        }),
+      },
+    ],
+    { tier: "light", purpose: "generateDelayCostInsight", projectId, jobId, maxTokens: 1500 }
+  );
+
+  await db.insight.updateMany({
+    where: { projectId, category: "TIME_COST", status: "OPEN" },
+    data: { status: "DISMISSED" },
+  });
+  await db.insight.create({
+    data: {
+      projectId,
+      title: narration.title,
+      body: narration.body,
+      severity: narration.severity,
+      category: "TIME_COST",
+      relatedEntityType: delayCost.drivers[0] ? "OBLIGATION" : undefined,
+      relatedEntityId: delayCost.drivers[0]?.obligationId,
+      status: "OPEN",
+    },
+  });
+  return true;
 }
 
 export async function generateInsights(projectId: string, jobId?: string): Promise<number> {
@@ -191,5 +280,13 @@ export async function generateInsights(projectId: string, jobId?: string): Promi
       },
     });
   }
-  return result.insights.length;
+  // The delay/cost narration is one more row in the same register.
+  let extra = 0;
+  try {
+    if (await generateDelayCostInsight(projectId, jobId)) extra = 1;
+  } catch {
+    // narration is best-effort; the rest of the insights still stand
+  }
+
+  return result.insights.length + extra;
 }
