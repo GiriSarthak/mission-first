@@ -4,7 +4,9 @@ import { ChecklistPanel } from "@/components/dashboard/checklist-panel";
 import { ObligationsPanel } from "@/components/dashboard/obligations-panel";
 import { InsightsPanel } from "@/components/dashboard/insights-panel";
 import { SchedulePanel } from "@/components/schedule/schedule-panel";
+import { TimeCostPanel } from "@/components/dashboard/time-cost-panel";
 import { AuthorizationError, getAuthorizedProject } from "@/lib/auth/authorize";
+import { computeProjectDelayCost } from "@/lib/analysis/snapshot";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +55,16 @@ export default async function DashboardPage({
       db.activity.findMany({ where: { projectId: id }, orderBy: { code: "asc" } }),
       db.activityLink.findMany({ where: { predecessor: { projectId: id } } }),
     ]);
+
+  // All figures computed deterministically; the AI only narrates them.
+  const [delayCost, snapshots] = await Promise.all([
+    computeProjectDelayCost(id),
+    db.scheduleSnapshot.findMany({
+      where: { projectId: id },
+      orderBy: { capturedAt: "asc" },
+      take: 200,
+    }),
+  ]);
 
   const pickPhases = (keys: string[]) => phases.filter((p) => keys.includes(p.key));
 
@@ -134,6 +146,32 @@ export default async function DashboardPage({
           sourcePage: ins.sourcePage,
         }))}
       />
+
+      {delayCost && (
+        <TimeCostPanel
+          stats={{
+            delayDays: delayCost.delayDays,
+            contractFinishDate: delayCost.contractFinishDate?.toISOString() ?? null,
+            forecastFinishDate: delayCost.forecastFinishDate?.toISOString() ?? null,
+            ldExposure: delayCost.ldExposure,
+            ldCapReached: delayCost.ldCapReached,
+            ldCapAmount: delayCost.ldCapAmount,
+            agencyAttributableDays: delayCost.agencyAttributableDays,
+            vendorAttributableDays: delayCost.vendorAttributableDays,
+            agencyAttributablePct: delayCost.agencyAttributablePct,
+            drivers: delayCost.drivers.map((d) => ({
+              obligationId: d.obligationId,
+              title: d.title,
+              attributedDays: d.attributedDays,
+            })),
+          }}
+          history={snapshots.map((s) => ({
+            capturedAt: s.capturedAt.toISOString(),
+            delayDays: s.delayDays,
+            ldExposure: s.ldExposure,
+          }))}
+        />
+      )}
 
       <SchedulePanel
         projectId={id}
