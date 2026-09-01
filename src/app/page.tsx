@@ -1,11 +1,15 @@
 import { redirect } from "next/navigation";
-import { db } from "@/lib/db";
+import { currentUser, visibleProjects } from "@/lib/auth/authorize";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const first = await db.project.findFirst({ orderBy: { createdAt: "asc" } });
-  if (first) redirect(`/projects/${first.id}/dashboard`);
+  const user = await currentUser();
+  if (!user) redirect("/login");
+  if (user.orgType === "AGENCY") redirect("/portfolio");
+
+  const projects = await visibleProjects(user);
+  if (projects.length > 0) redirect(`/projects/${projects[0].id}/dashboard`);
 
   return (
     <div className="flex h-screen items-center justify-center bg-mf-surface-1">
@@ -13,9 +17,10 @@ export default async function Home() {
         <div className="mf-panel-header">
           <span className="mf-panel-title">Mission First</span>
         </div>
-        <div className="p-4 text-mf-text-2">
-          No projects found. Run <span className="mf-mono">npm run db:seed</span>{" "}
-          to create the demo project.
+        <div className="p-4 text-[12px] text-mf-text-2">
+          No projects yet for {user.orgName}. Run{" "}
+          <span className="mf-mono">npm run db:seed</span> to create the demo
+          projects.
         </div>
       </div>
     </div>

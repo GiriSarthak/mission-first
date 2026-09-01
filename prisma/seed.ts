@@ -5,10 +5,14 @@
  * listed in the brief; clause numbers are never fabricated beyond those.
  */
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 import fs from "node:fs";
 import path from "node:path";
 
 const db = new PrismaClient();
+
+/** Demo password for all seeded users; override with DEMO_PASSWORD in .env. */
+const DEMO_PASSWORD = process.env.DEMO_PASSWORD || "missionfirst";
 
 function startOfToday(): Date {
   const d = new Date();
@@ -42,6 +46,29 @@ async function main() {
   const contractStart = daysAgo(120);
   const loaDate = day(-20, contractStart);
 
+  // --- Organizations & users (Phase 2) ---
+  const agencyOrg = await db.organization.create({
+    data: { name: "South Eastern Coalfields Ltd.", type: "AGENCY" },
+  });
+  const vendorOrg = await db.organization.create({
+    data: { name: "Apex Power Infra Pvt. Ltd.", type: "VENDOR" },
+  });
+  const vendorOrg2 = await db.organization.create({
+    data: { name: "Bharat Electricals & Works Ltd.", type: "VENDOR" },
+  });
+
+  const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
+  const users = [
+    { name: "R. Nair", email: "admin@apexpower.example", role: "VENDOR_ADMIN", orgId: vendorOrg.id },
+    { name: "S. Kulkarni", email: "member@apexpower.example", role: "VENDOR_MEMBER", orgId: vendorOrg.id },
+    { name: "A. Verma", email: "admin@secl.example", role: "AGENCY_ADMIN", orgId: agencyOrg.id },
+    { name: "P. Sahu", email: "reviewer@secl.example", role: "AGENCY_REVIEWER", orgId: agencyOrg.id },
+    { name: "M. Das", email: "admin@bharatelec.example", role: "VENDOR_ADMIN", orgId: vendorOrg2.id },
+  ];
+  for (const u of users) {
+    await db.user.create({ data: { ...u, passwordHash } });
+  }
+
   const project = await db.project.create({
     data: {
       name: "SECL Dipka OCP — 2×16 MVA & 2×5 MVA Substations",
@@ -50,6 +77,11 @@ async function main() {
       contractValue: 227142147,
       contractStart,
       contractDurationDays: 540,
+      // GTC 12.0: 0.5% of contract value per week of delay, capped at 10%.
+      ldWeeklyRatePct: 0.5,
+      ldCapPct: 10,
+      vendorOrgId: vendorOrg.id,
+      agencyOrgId: agencyOrg.id,
     },
   });
 
@@ -103,6 +135,7 @@ async function main() {
     ownerRole?: string;
     clause?: string;
     page?: number;
+    requiresAgencyApproval?: boolean;
   };
   const items: ItemSeed[] = [
     // Pre-bid
@@ -276,6 +309,24 @@ async function main() {
       page: 82,
       ownerRole: "Civil",
     },
+    {
+      phase: "SOW",
+      title: "Substation civil drawings — agency approval",
+      description:
+        "General arrangement and foundation drawings submitted for SECL approval before foundation work.",
+      status: "IN_PROGRESS",
+      page: 82,
+      ownerRole: "Engineering",
+      requiresAgencyApproval: true,
+    },
+    {
+      phase: "EXECUTION",
+      title: "Equipment layout drawings — agency approval",
+      status: "NOT_STARTED",
+      page: 82,
+      ownerRole: "Engineering",
+      requiresAgencyApproval: true,
+    },
     // Execution
     {
       phase: "EXECUTION",
@@ -315,6 +366,7 @@ async function main() {
         sourceDocumentId: doc.id,
         sourcePage: it.page,
         sourceClause: it.clause,
+        requiresAgencyApproval: it.requiresAgencyApproval ?? false,
       },
     });
   }
@@ -473,6 +525,17 @@ async function main() {
     });
   }
 
+  // Delay attribution: the overdue SECL equipment supply blocks transformer
+  // erection; the pending drawings approval blocks the equipment foundations.
+  await db.obligation.update({
+    where: { id: obligationRows[2].id },
+    data: { blockingActivityId: actIds["A110"] },
+  });
+  await db.obligation.update({
+    where: { id: obligationRows[4].id },
+    data: { blockingActivityId: actIds["A100"] },
+  });
+
   // ---- Insights (consistent with the state above) ----
   const equipObligation = obligationRows[2];
   const eotObligation = obligationRows[3];
@@ -525,7 +588,148 @@ async function main() {
     ],
   });
 
+  await seedSecondProject(agencyOrg.id, vendorOrg2.id);
+
   console.log(`Seeded project ${project.id} (${project.name}).`);
+  console.log("");
+  console.log("Demo sign-ins (password for all: " + DEMO_PASSWORD + ")");
+  for (const u of users) {
+    console.log(`  ${u.role.padEnd(16)} ${u.email}`);
+  }
+}
+
+/**
+ * A second, smaller vendor project under a different vendor org but the same
+ * agency org, so the agency portfolio view has more than one row.
+ */
+async function seedSecondProject(agencyOrgId: string, vendorOrgId: string) {
+  const contractStart = daysAgo(60);
+  const project = await db.project.create({
+    data: {
+      name: "SECL Gevra — 33/6.6 kV Feeder Bay Extension",
+      tenderRef: "SECL/BSP/CMC/e-Tender/311",
+      agencyName: "South Eastern Coalfields Ltd (SECL), Gevra Area",
+      contractValue: 48600000,
+      contractStart,
+      contractDurationDays: 300,
+      ldWeeklyRatePct: 0.5,
+      ldCapPct: 10,
+      vendorOrgId,
+      agencyOrgId,
+    },
+  });
+
+  const phaseDefs = [
+    { key: "PRE_BID", title: "Pre-Bid", sortOrder: 1 },
+    { key: "BID_SUBMISSION", title: "Bid Submission", sortOrder: 2 },
+    { key: "POST_AWARD", title: "Post-Award", sortOrder: 3 },
+    { key: "SOW", title: "Scope of Work", sortOrder: 4 },
+    { key: "EXECUTION", title: "Execution", sortOrder: 5 },
+    { key: "CLOSEOUT", title: "Closeout", sortOrder: 6 },
+  ];
+  const phases: Record<string, string> = {};
+  for (const p of phaseDefs) {
+    const row = await db.checklistPhase.create({ data: { projectId: project.id, ...p } });
+    phases[p.key] = row.id;
+  }
+
+  const items = [
+    { phase: "POST_AWARD", title: "Performance security within 30 days of LOA", status: "DONE" },
+    { phase: "POST_AWARD", title: "Labour licence", status: "DONE" },
+    { phase: "SOW", title: "Feeder bay extension — supply & erection", status: "IN_PROGRESS" },
+    { phase: "SOW", title: "Protection & metering panel works", status: "NOT_STARTED" },
+    { phase: "EXECUTION", title: "Maintain hindrance register at site", status: "IN_PROGRESS" },
+  ];
+  for (const it of items) {
+    await db.checklistItem.create({
+      data: {
+        phaseId: phases[it.phase],
+        title: it.title,
+        status: it.status,
+        sourceType: "MANUAL",
+      },
+    });
+  }
+
+  const acts = [
+    { code: "B010", name: "Mobilisation", m: 10, actualStart: 0, actualFinish: 9, pct: 100 },
+    { code: "B020", name: "Design & drawing submission", m: 25, actualStart: 10, actualFinish: 36, pct: 100 },
+    { code: "B030", name: "Drawing approval (agency)", m: 25, actualStart: 37, pct: 60, remaining: 20 },
+    { code: "B040", name: "Panel & switchgear procurement", m: 120, actualStart: 40, pct: 30, remaining: 95 },
+    { code: "B050", name: "Bay civil works", m: 45 },
+    { code: "B060", name: "Erection & cabling", m: 40 },
+    { code: "B070", name: "Testing & commissioning", m: 20 },
+  ];
+  const ids: Record<string, string> = {};
+  for (const a of acts) {
+    const row = await db.activity.create({
+      data: {
+        projectId: project.id,
+        code: a.code,
+        name: a.name,
+        mostLikely: a.m,
+        actualStart: a.actualStart !== undefined ? day(a.actualStart, contractStart) : undefined,
+        actualFinish: a.actualFinish !== undefined ? day(a.actualFinish, contractStart) : undefined,
+        percentComplete: a.pct ?? 0,
+        remainingDays: a.remaining,
+        sourceType: "MANUAL",
+      },
+    });
+    ids[a.code] = row.id;
+  }
+  const links: Array<[string, string]> = [
+    ["B010", "B020"],
+    ["B020", "B030"],
+    ["B030", "B040"],
+    ["B030", "B050"],
+    ["B040", "B060"],
+    ["B050", "B060"],
+    ["B060", "B070"],
+  ];
+  for (const [p, s] of links) {
+    await db.activityLink.create({
+      data: { predecessorId: ids[p], successorId: ids[s], type: "FS", lagDays: 0 },
+    });
+  }
+
+  const requested = daysAgo(28);
+  await db.obligation.create({
+    data: {
+      projectId: project.id,
+      title: "Approval of feeder bay protection drawings",
+      owedBy: "AGENCY",
+      status: "OVERDUE",
+      requestedOn: requested,
+      stipulatedDays: 21,
+      dueOn: day(21, requested),
+      escalationLevel: 1,
+      blockingActivityId: ids["B040"],
+    },
+  });
+  await db.obligation.create({
+    data: {
+      projectId: project.id,
+      title: "Shutdown clearance for bay tie-in",
+      owedBy: "AGENCY",
+      status: "PENDING",
+      requestedOn: daysAgo(9),
+      stipulatedDays: 30,
+      dueOn: day(30, daysAgo(9)),
+    },
+  });
+
+  await db.insight.create({
+    data: {
+      projectId: project.id,
+      title: "Protection drawing approval is 7 days overdue and holds procurement",
+      body: "B040 (panel & switchgear procurement) cannot progress past 30% until SECL returns the approved protection drawings, requested 28 days ago against a 21-day window.",
+      severity: "CRITICAL",
+      category: "OBLIGATION",
+      status: "OPEN",
+    },
+  });
+
+  console.log(`Seeded second project ${project.id} (${project.name}).`);
 }
 
 main()

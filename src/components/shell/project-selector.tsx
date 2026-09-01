@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronsUpDown, Plus } from "lucide-react";
+import { ChevronsUpDown, LayoutGrid, Plus } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,10 +20,12 @@ export function ProjectSelector({
   projects,
   currentId,
   onCreateProject,
+  portfolioHref,
 }: {
   projects: ProjectSummary[];
   currentId: string;
   onCreateProject?: () => Promise<string | null>;
+  portfolioHref?: string | null;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -58,17 +60,26 @@ export function ProjectSelector({
             </div>
           </DropdownMenuItem>
         ))}
-        {projects.length > 0 && <DropdownMenuSeparator />}
-        <DropdownMenuItem
-          onSelect={async () => {
-            if (!onCreateProject) return;
-            const id = await onCreateProject();
-            if (id) router.push(`/projects/${id}/settings`);
-          }}
-        >
-          <Plus className="size-3.5" />
-          <span className="text-[12px]">New project</span>
-        </DropdownMenuItem>
+        {projects.length > 0 && (portfolioHref || onCreateProject) && (
+          <DropdownMenuSeparator />
+        )}
+        {portfolioHref && (
+          <DropdownMenuItem onSelect={() => router.push(portfolioHref)}>
+            <LayoutGrid className="size-3.5" />
+            <span className="text-[12px]">All projects (portfolio)</span>
+          </DropdownMenuItem>
+        )}
+        {onCreateProject && (
+          <DropdownMenuItem
+            onSelect={async () => {
+              const id = await onCreateProject();
+              if (id) router.push(`/projects/${id}/settings`);
+            }}
+          >
+            <Plus className="size-3.5" />
+            <span className="text-[12px]">New project</span>
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

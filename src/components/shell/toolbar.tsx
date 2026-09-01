@@ -11,10 +11,14 @@ const PAGE_NAMES: Record<string, string> = {
 export function Toolbar({
   projectName,
   dataDate,
+  viewMode,
+  counterpartyName,
   children,
 }: {
   projectName: string;
   dataDate: string;
+  viewMode?: "AGENCY" | "VENDOR";
+  counterpartyName?: string | null;
   children?: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -28,6 +32,14 @@ export function Toolbar({
         <span className="text-mf-neutral">›</span>
         <span className="font-medium text-mf-text-1">{page}</span>
       </div>
+      {viewMode === "AGENCY" && (
+        <span
+          className="mf-mono border border-mf-border bg-white px-1.5 py-px text-[9px] tracking-wide text-mf-text-2 uppercase"
+          title="Agency view — project data is read-only apart from obligation responses and approvals"
+        >
+          Agency view{counterpartyName ? ` · ${counterpartyName}` : ""}
+        </span>
+      )}
       <div className="ml-auto flex items-center gap-3">
         <span className="text-[11px] text-mf-text-2">
           Data date{" "}

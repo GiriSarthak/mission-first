@@ -11,6 +11,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  type      String // AGENCY | VENDOR
+  createdAt DateTime @default(now())
+
+  users           User[]
+  vendorProjects  Project[] @relation("vendorOrg")
+  agencyProjects  Project[] @relation("agencyOrg")
+}
+
+model User {
+  id           String       @id @default(cuid())
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name         String
+  email        String       @unique
+  passwordHash String
+  role         String // VENDOR_ADMIN | VENDOR_MEMBER | AGENCY_ADMIN | AGENCY_REVIEWER
+  createdAt    DateTime     @default(now())
+}
+
 model Project {
   id                   String    @id @default(cuid())
   name                 String
@@ -19,7 +41,15 @@ model Project {
   contractValue        Float?
   contractStart        DateTime?
   contractDurationDays Int?
+  // Liquidated damages terms (GTC default 0.5%/week capped at 10%; SCC may override)
+  ldWeeklyRatePct      Float     @default(0.5)
+  ldCapPct             Float     @default(10)
   createdAt            DateTime  @default(now())
+
+  vendorOrgId String?
+  vendorOrg   Organization? @relation("vendorOrg", fields: [vendorOrgId], references: [id], onDelete: SetNull)
+  agencyOrgId String?
+  agencyOrg   Organization? @relation("agencyOrg", fields: [agencyOrgId], references: [id], onDelete: SetNull)
 
   documents    Document[]
   phases       ChecklistPhase[]
@@ -29,6 +59,21 @@ model Project {
   changesets   Changeset[]
   chatMessages ChatMessage[]
   jobs         Job[]
+  snapshots    ScheduleSnapshot[]
+}
+
+/// One row per schedule recompute — powers the Time & Cost Exposure trend line.
+model ScheduleSnapshot {
+  id                   String   @id @default(cuid())
+  projectId            String
+  project              Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  capturedAt           DateTime @default(now())
+  forecastFinishDate   DateTime
+  delayDays            Int
+  ldExposure           Float
+  agencyAttributablePct Float
+
+  @@index([projectId, capturedAt])
 }
 
 model Document {
@@ -91,6 +136,10 @@ model ChecklistItem {
   sourceDocument   Document?      @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
   sourcePage       Int?
   sourceClause     String?
+  // Items the agency must sign off (e.g. drawing approval) — AGENCY_ADMIN only.
+  requiresAgencyApproval Boolean  @default(false)
+  approvedAt             DateTime?
+  approvedByUserId       String?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 }
@@ -112,6 +161,13 @@ model Obligation {
   receivedOn       DateTime?
   status           String    @default("PENDING") // PENDING | REQUESTED | OVERDUE | RECEIVED | WAIVED
   escalationLevel  Int       @default(0)
+  /// Which activity this obligation blocks — drives delay attribution
+  /// (src/lib/analysis/delayCost.ts). Set by extraction or manually.
+  blockingActivityId String?
+  blockingActivity   Activity? @relation("blockedBy", fields: [blockingActivityId], references: [id], onDelete: SetNull)
+  /// Agency-side response recorded by AGENCY_ADMIN / AGENCY_REVIEWER.
+  agencyResponseNote String?
+  agencyRespondedAt  DateTime?
 }
 
 model Activity {
@@ -135,6 +191,7 @@ model Activity {
 
   predecessors ActivityLink[] @relation("successor")
   successors   ActivityLink[] @relation("predecessor")
+  blockedBy    Obligation[]   @relation("blockedBy")
 
   @@unique([projectId, code])
 }
