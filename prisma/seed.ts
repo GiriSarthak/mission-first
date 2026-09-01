@@ -372,7 +372,7 @@ async function main() {
   }
 
   // ---- Obligations owed by the agency (fabricated post-award state) ----
-  const equipRequested = daysAgo(35);
+  const equipRequested = daysAgo(55);
   const eotRequested = daysAgo(20);
   const obligations = [
     {
@@ -425,6 +425,8 @@ async function main() {
       owedBy: "AGENCY",
       status: "PENDING",
       requestedOn: daysAgo(12),
+      stipulatedDays: 21,
+      dueOn: day(21, daysAgo(12)),
     },
   ];
   const obligationRows = [];
@@ -456,7 +458,7 @@ async function main() {
     { code: "A040", name: "Drawing approval (agency)", wbs: "2.2", o: 20, m: 30, p: 50, actualStart: 67, actualFinish: 98, pct: 100 },
     { code: "A050", name: "Civil works — control room building", wbs: "3.1", o: 75, m: 90, p: 120, actualStart: 100, pct: 45, remaining: 50 },
     { code: "A060", name: "Civil works — outdoor switchyard", wbs: "3.2", o: 60, m: 75, p: 100, actualStart: 105, pct: 35, remaining: 50 },
-    { code: "A070", name: "Transformer procurement — 2×16 MVA", wbs: "4.1", o: 210, m: 240, p: 300, actualStart: 99, pct: 10, remaining: 225 },
+    { code: "A070", name: "Transformer procurement — 2×16 MVA", wbs: "4.1", o: 210, m: 240, p: 300, actualStart: 99, pct: 10, remaining: 325 },
     { code: "A080", name: "Transformer procurement — 2×5 MVA", wbs: "4.2", o: 180, m: 210, p: 260, actualStart: 99, pct: 15, remaining: 180 },
     { code: "A090", name: "Switchgear & panel procurement", wbs: "4.3", o: 150, m: 180, p: 220, actualStart: 100, pct: 20, remaining: 145 },
     { code: "A100", name: "Equipment foundations", wbs: "3.3", o: 35, m: 45, p: 60 },
@@ -544,7 +546,7 @@ async function main() {
       {
         projectId: project.id,
         title: "Agency equipment supply is overdue and feeds the critical path",
-        body: "Supply of SECL-owned equipment (NIT note iv) was due 5 days ago; transformer erection cannot start without it. Escalation level 1 already issued — consider level 2.",
+        body: "Supply of SECL-owned equipment (NIT note iv) was due 25 days ago; transformer erection (A110) cannot start without it, and A110 is on the critical path. Escalation level 1 already issued — consider level 2.",
         severity: "CRITICAL",
         category: "OBLIGATION",
         relatedEntityType: "OBLIGATION",
@@ -568,7 +570,7 @@ async function main() {
       {
         projectId: project.id,
         title: "Transformer procurement drives the critical path",
-        body: "A070 (2×16 MVA transformers) is 10% complete with 225 days remaining. Any further slip consumes the remaining float to the 540-day contract finish.",
+        body: "A070 (2×16 MVA transformers) is 10% complete with 325 days remaining, which now pushes the forecast finish past the 540-day contract date. Recovery needs either an expedited despatch or resequencing of erection.",
         severity: "WARNING",
         category: "SCHEDULE",
         relatedEntityType: "ACTIVITY",
@@ -611,7 +613,7 @@ async function seedSecondProject(agencyOrgId: string, vendorOrgId: string) {
       agencyName: "South Eastern Coalfields Ltd (SECL), Gevra Area",
       contractValue: 48600000,
       contractStart,
-      contractDurationDays: 300,
+      contractDurationDays: 200,
       ldWeeklyRatePct: 0.5,
       ldCapPct: 10,
       vendorOrgId,
