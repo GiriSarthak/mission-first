@@ -25,9 +25,11 @@ export type InsightRow = {
 export function InsightsPanel({
   projectId,
   insights,
+  canRegenerate,
 }: {
   projectId: string;
   insights: InsightRow[];
+  canRegenerate: boolean;
 }) {
   const [, startTransition] = useTransition();
   const [regenerating, setRegenerating] = useState(false);
@@ -73,7 +75,7 @@ export function InsightsPanel({
         )}
         <button
           type="button"
-          disabled={regenerating}
+          disabled={regenerating || !canRegenerate}
           onClick={regenerate}
           title="Regenerate insights from the current project state"
           className="ml-auto flex items-center gap-1 border border-mf-border bg-white px-1.5 py-px text-[10px] text-mf-text-2 hover:bg-mf-surface-1 disabled:cursor-not-allowed disabled:opacity-40"

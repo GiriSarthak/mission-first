@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { PDFDocument } from "pdf-lib";
 import { db } from "@/lib/db";
 import { documentStoragePath, saveDocumentFile } from "@/lib/storage";
+import { AuthorizationError, getAuthorizedProject } from "@/lib/auth/authorize";
 
 export const maxDuration = 120;
 
@@ -10,9 +11,13 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: projectId } = await params;
-  const project = await db.project.findUnique({ where: { id: projectId } });
-  if (!project) {
-    return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  try {
+    await getAuthorizedProject(projectId, "MANAGE_DOCUMENTS");
+  } catch (err) {
+    if (err instanceof AuthorizationError) {
+      return NextResponse.json({ error: err.message }, { status: 403 });
+    }
+    throw err;
   }
 
   const form = await req.formData();

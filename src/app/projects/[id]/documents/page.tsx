@@ -1,6 +1,8 @@
+import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { DocumentsWorkspace } from "@/components/documents/workspace";
 import { ChatPanel } from "@/components/documents/chat-panel";
+import { AuthorizationError, getAuthorizedProject } from "@/lib/auth/authorize";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +15,15 @@ export default async function DocumentsPage({
 }) {
   const { id } = await params;
   const { doc, page } = await searchParams;
+
+  let ctx;
+  try {
+    ctx = await getAuthorizedProject(id, "VIEW_PROJECT");
+  } catch (err) {
+    if (err instanceof AuthorizationError) notFound();
+    throw err;
+  }
+  const canManage = ctx.can("MANAGE_DOCUMENTS");
   const [documents, chatMessages] = await Promise.all([
     db.document.findMany({
       where: { projectId: id },
@@ -42,11 +53,13 @@ export default async function DocumentsPage({
           }))}
           initialDocId={doc && documents.some((d) => d.id === doc) ? doc : null}
           initialPage={Math.max(1, Number(page ?? 1) || 1)}
+          canManage={canManage}
         />
       </div>
       <div className="w-2/5 min-w-80 shrink-0">
         <ChatPanel
           projectId={id}
+          canManage={canManage}
           messages={chatMessages.map((m) => ({
             id: m.id,
             role: m.role,

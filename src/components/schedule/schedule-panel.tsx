@@ -32,12 +32,15 @@ export function SchedulePanel({
   contractDurationDays,
   initialActivities,
   initialLinks,
+  canEdit,
 }: {
   projectId: string;
   contractStart: string | null;
   contractDurationDays: number | null;
   initialActivities: ActivityState[];
   initialLinks: LinkState[];
+  /** agency roles view the schedule but cannot edit it */
+  canEdit: boolean;
 }) {
   const [activities, setActivities] = useState(initialActivities);
   const [links, setLinks] = useState(initialLinks);
@@ -281,6 +284,7 @@ export function SchedulePanel({
           links={links}
           result={result}
           projectStart={projectStart}
+          canEdit={canEdit}
           onPatch={onPatchActivity}
           onAdd={onAddActivity}
           onRemove={onRemoveActivity}

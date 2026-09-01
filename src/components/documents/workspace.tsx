@@ -46,11 +46,14 @@ export function DocumentsWorkspace({
   initialDocuments,
   initialDocId,
   initialPage,
+  canManage,
 }: {
   projectId: string;
   initialDocuments: DocumentRow[];
   initialDocId: string | null;
   initialPage: number;
+  /** agency roles read the bundle but cannot upload, reprocess or delete */
+  canManage: boolean;
 }) {
   const [documents, setDocuments] = useState(initialDocuments);
   const [selectedId, setSelectedId] = useState<string | null>(initialDocId);
@@ -156,6 +159,7 @@ export function DocumentsWorkspace({
   return (
     <div className="flex h-full flex-col gap-3 p-3">
       {/* Drop zone */}
+      {canManage && (
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -193,6 +197,7 @@ export function DocumentsWorkspace({
           }}
         />
       </div>
+      )}
       {uploadError && (
         <div className="border border-mf-critical/40 bg-[#fdf1ef] px-2 py-1 text-[11px] text-mf-critical">
           {uploadError}
@@ -233,6 +238,7 @@ export function DocumentsWorkspace({
                   <td className="px-2">
                     <select
                       value={d.docType}
+                      disabled={!canManage}
                       onChange={(e) => {
                         const t = e.target.value as DocType;
                         setDocuments((prev) =>
@@ -284,6 +290,7 @@ export function DocumentsWorkspace({
                       >
                         <Eye className="size-3.5" />
                       </button>
+                      {canManage && (
                       <button
                         type="button"
                         title="Reprocess"
@@ -299,6 +306,8 @@ export function DocumentsWorkspace({
                       >
                         <RefreshCw className="size-3.5" />
                       </button>
+                      )}
+                      {canManage && (
                       <button
                         type="button"
                         title="Delete"
@@ -312,6 +321,7 @@ export function DocumentsWorkspace({
                       >
                         <Trash2 className="size-3.5" />
                       </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -319,7 +329,9 @@ export function DocumentsWorkspace({
               {documents.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-2 py-4 text-center text-[11px] text-mf-text-2">
-                    No documents yet — drop the tender bundle above.
+                    {canManage
+                      ? "No documents yet — drop the tender bundle above."
+                      : "The vendor has not uploaded any documents yet."}
                   </td>
                 </tr>
               )}

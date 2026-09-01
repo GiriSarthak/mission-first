@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { deleteDocumentFile } from "@/lib/storage";
+import { getAuthorizedProject } from "@/lib/auth/authorize";
 
 export async function updateProjectSettings(
   projectId: string,
@@ -14,6 +15,7 @@ export async function updateProjectSettings(
     contractDurationDays: number | null;
   }
 ): Promise<void> {
+  await getAuthorizedProject(projectId, "EDIT_PROJECT_SETTINGS");
   await db.project.update({
     where: { id: projectId },
     data: {
@@ -40,6 +42,7 @@ const PHASE_DEFS = [
 
 /** Clears everything except the project record; default phases are recreated. */
 export async function resetProjectData(projectId: string): Promise<void> {
+  await getAuthorizedProject(projectId, "EDIT_PROJECT_SETTINGS");
   const documents = await db.document.findMany({
     where: { projectId },
     select: { storagePath: true },

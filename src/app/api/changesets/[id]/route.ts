@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { AuthorizationError, getAuthorizedProject } from "@/lib/auth/authorize";
 
 export async function GET(
   _req: Request,
@@ -11,6 +12,14 @@ export async function GET(
     include: { items: { orderBy: { id: "asc" } } },
   });
   if (!changeset) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  try {
+    await getAuthorizedProject(changeset.projectId, "VIEW_PROJECT");
+  } catch (err) {
+    if (err instanceof AuthorizationError) {
+      return NextResponse.json({ error: err.message }, { status: 403 });
+    }
+    throw err;
+  }
   return NextResponse.json({
     id: changeset.id,
     status: changeset.status,

@@ -42,9 +42,12 @@ type ChangesetData = {
 export function ChatPanel({
   projectId,
   messages: initialMessages,
+  canManage,
 }: {
   projectId: string;
   messages: ChatMessageRow[];
+  /** uploads and changeset acceptance are vendor-side actions */
+  canManage: boolean;
 }) {
   const [messages, setMessages] = useState(initialMessages);
   const [draft, setDraft] = useState("");
@@ -150,7 +153,11 @@ export function ChatPanel({
                 {m.content}
               </div>
               {m.changesetId && (
-                <ChangesetCard changesetId={m.changesetId} onApplied={refresh} />
+                <ChangesetCard
+                  changesetId={m.changesetId}
+                  canApply={canManage}
+                  onApplied={refresh}
+                />
               )}
             </div>
           ))
@@ -178,6 +185,7 @@ export function ChatPanel({
       )}
 
       <div className="flex items-center gap-1 border-t border-mf-border p-2">
+        {canManage && (
         <button
           type="button"
           title="Attach PDF(s)"
@@ -186,6 +194,7 @@ export function ChatPanel({
         >
           <Paperclip className="size-3.5" />
         </button>
+        )}
         <input
           ref={fileInput}
           type="file"
@@ -231,9 +240,11 @@ const ENTITY_LABELS: Record<string, string> = {
 
 function ChangesetCard({
   changesetId,
+  canApply,
   onApplied,
 }: {
   changesetId: string;
+  canApply: boolean;
   onApplied: () => void;
 }) {
   const [data, setData] = useState<ChangesetData | null>(null);
@@ -264,7 +275,7 @@ function ChangesetCard({
     );
   }
 
-  const pending = data.status === "PROPOSED";
+  const pending = data.status === "PROPOSED" && canApply;
   const groups = Object.entries(ENTITY_LABELS)
     .map(([type, label]) => ({
       type,

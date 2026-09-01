@@ -4,11 +4,13 @@ import { db } from "@/lib/db";
 import { complete } from "@/lib/ai/client";
 import { escalationLetterPrompt } from "@/lib/ai/prompts/escalation-letter";
 import { formatDate, daysBetween } from "@/lib/format";
+import { authorizeByObligation } from "@/lib/auth/authorize";
 
 /** §7.6 — drafts formal escalation correspondence. Draft only, never sent. */
 export async function draftEscalationLetter(
   obligationId: string
 ): Promise<{ letter: string } | { error: string }> {
+  await authorizeByObligation(obligationId, "DRAFT_ESCALATION_LETTER");
   const obligation = await db.obligation.findUnique({
     where: { id: obligationId },
     include: { project: true },

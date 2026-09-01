@@ -15,9 +15,18 @@ export type RunResult =
   | { processed: false }
   | { processed: true; jobId: string; type: string; status: "DONE" | "FAILED"; error?: string };
 
-export async function runNextJob(): Promise<RunResult> {
+/**
+ * Drains one pending job. `projectIds` scopes the queue to projects the
+ * caller may act on — the route handler passes the signed-in user's visible
+ * projects so one org can never drive another org's jobs.
+ */
+export async function runNextJob(projectIds?: string[]): Promise<RunResult> {
+  if (projectIds && projectIds.length === 0) return { processed: false };
   const job = await db.job.findFirst({
-    where: { status: "PENDING" },
+    where: {
+      status: "PENDING",
+      ...(projectIds ? { projectId: { in: projectIds } } : {}),
+    },
     orderBy: { createdAt: "asc" },
   });
   if (!job) return { processed: false };

@@ -2,9 +2,13 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Check, Plus, Stamp } from "lucide-react";
 import { CHECKLIST_STATUSES, type ChecklistStatus } from "@/lib/enums";
-import { addChecklistItem, updateChecklistItemStatus } from "@/lib/actions/checklist";
+import {
+  addChecklistItem,
+  approveChecklistItem,
+  updateChecklistItemStatus,
+} from "@/lib/actions/checklist";
 import { citation } from "@/components/status";
 import { StatusSelect } from "@/components/dashboard/status-select";
 import { formatDate } from "@/lib/format";
@@ -19,6 +23,8 @@ export type ChecklistItemRow = {
   sourceClause: string | null;
   sourcePage: number | null;
   sourceDocumentId: string | null;
+  requiresAgencyApproval: boolean;
+  approvedAt: string | null;
 };
 
 export type PhaseRow = { id: string; key: string; title: string };
@@ -32,11 +38,17 @@ export function ChecklistPanel({
   title,
   phases,
   items,
+  canEdit,
+  canApprove,
 }: {
   projectId: string;
   title: string;
   phases: PhaseRow[];
   items: ChecklistItemRow[];
+  /** false for agency roles — controls are disabled, and the server rejects writes anyway */
+  canEdit: boolean;
+  /** AGENCY_ADMIN may sign off items flagged requiresAgencyApproval */
+  canApprove: boolean;
 }) {
   const [filter, setFilter] = useState<Filter>("ALL");
   const [newTitle, setNewTitle] = useState("");
@@ -86,6 +98,7 @@ export function ChecklistPanel({
                   <StatusSelect
                     value={it.status}
                     options={CHECKLIST_STATUSES}
+                    disabled={!canEdit}
                     onChange={(s) =>
                       startTransition(() =>
                         updateChecklistItemStatus(it.id, s as ChecklistStatus)
@@ -94,7 +107,20 @@ export function ChecklistPanel({
                   />
                 </td>
                 <td className="px-2 py-1 align-top">
-                  <div className="text-[12px] leading-4 text-mf-text-1">{it.title}</div>
+                  <div className="flex items-start gap-1.5">
+                    <span className="text-[12px] leading-4 text-mf-text-1">
+                      {it.title}
+                    </span>
+                    {it.requiresAgencyApproval && (
+                      <ApprovalControl
+                        item={it}
+                        canApprove={canApprove}
+                        onToggle={(approve) =>
+                          startTransition(() => approveChecklistItem(it.id, approve))
+                        }
+                      />
+                    )}
+                  </div>
                   {citation(it.sourceClause, it.sourcePage) &&
                     (it.sourceDocumentId ? (
                       <Link
@@ -132,6 +158,7 @@ export function ChecklistPanel({
           </tbody>
         </table>
       </div>
+      {canEdit && (
       <form
         className="flex items-center gap-1 border-t border-mf-border px-2 py-1"
         onSubmit={(e) => {
@@ -163,7 +190,56 @@ export function ChecklistPanel({
           </select>
         )}
       </form>
+      )}
     </div>
+  );
+}
+
+/**
+ * Agency sign-off marker. Vendors see the state; only AGENCY_ADMIN can toggle
+ * it, and `approveChecklistItem` re-checks that server-side.
+ */
+function ApprovalControl({
+  item,
+  canApprove,
+  onToggle,
+}: {
+  item: ChecklistItemRow;
+  canApprove: boolean;
+  onToggle: (approve: boolean) => void;
+}) {
+  const approved = !!item.approvedAt;
+  const title = approved
+    ? `Agency approved ${formatDate(item.approvedAt)}`
+    : "Awaiting agency approval";
+  if (!canApprove) {
+    return (
+      <span title={title} className="mt-0.5 shrink-0">
+        {approved ? (
+          <Check className="size-3 text-mf-done" />
+        ) : (
+          <Stamp className="size-3 text-mf-warning" />
+        )}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      title={approved ? `${title} — click to withdraw` : "Approve on behalf of the agency"}
+      onClick={() => onToggle(!approved)}
+      className="mt-0.5 flex shrink-0 items-center gap-0.5 border border-mf-border bg-white px-1 py-px text-[9px] text-mf-text-2 hover:border-mf-accent hover:text-mf-accent"
+    >
+      {approved ? (
+        <>
+          <Check className="size-2.5 text-mf-done" /> Approved
+        </>
+      ) : (
+        <>
+          <Stamp className="size-2.5 text-mf-warning" /> Approve
+        </>
+      )}
+    </button>
   );
 }
 

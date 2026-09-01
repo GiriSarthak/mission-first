@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { AuthorizationError, authorizeByDocument } from "@/lib/auth/authorize";
 
 /** Viewer data: one page of extracted text plus the findings for the doc. */
 export async function GET(
@@ -10,6 +11,14 @@ export async function GET(
   const url = new URL(req.url);
   const page = Math.max(1, Number(url.searchParams.get("page") ?? 1) || 1);
 
+  try {
+    await authorizeByDocument(id, "VIEW_PROJECT");
+  } catch (err) {
+    if (err instanceof AuthorizationError) {
+      return NextResponse.json({ error: err.message }, { status: 403 });
+    }
+    throw err;
+  }
   const doc = await db.document.findUnique({ where: { id } });
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 

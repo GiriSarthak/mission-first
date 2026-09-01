@@ -27,6 +27,7 @@ export function ActivityTable({
   onRemove,
   onAddLink,
   onRemoveLink,
+  canEdit,
 }: {
   activities: ActivityState[];
   links: LinkState[];
@@ -42,6 +43,7 @@ export function ActivityTable({
     lagDays: number
   ) => Promise<void>;
   onRemoveLink: (id: string) => void;
+  canEdit: boolean;
 }) {
   const [linksFor, setLinksFor] = useState<string | null>(null);
   const [newCode, setNewCode] = useState("");
@@ -80,16 +82,17 @@ export function ActivityTable({
               <tr key={a.id} className="h-[26px] border-b border-mf-gridline text-[11px] hover:bg-[#f8f9fb]">
                 <td className="mf-mono px-2 text-mf-text-2">{a.code}</td>
                 <td className="px-2 text-mf-text-1">{a.name}</td>
-                <NumCell value={a.optimistic} nullable onCommit={(v) => onPatch(a.id, { optimistic: v })} />
-                <NumCell value={a.mostLikely} onCommit={(v) => onPatch(a.id, { mostLikely: v ?? 1 })} />
-                <NumCell value={a.pessimistic} nullable onCommit={(v) => onPatch(a.id, { pessimistic: v })} />
+                <NumCell value={a.optimistic} nullable readOnly={!canEdit} onCommit={(v) => onPatch(a.id, { optimistic: v })} />
+                <NumCell value={a.mostLikely} readOnly={!canEdit} onCommit={(v) => onPatch(a.id, { mostLikely: v ?? 1 })} />
+                <NumCell value={a.pessimistic} nullable readOnly={!canEdit} onCommit={(v) => onPatch(a.id, { pessimistic: v })} />
                 <NumCell
                   value={a.percentComplete}
+                  readOnly={!canEdit}
                   onCommit={(v) => onPatch(a.id, { percentComplete: Math.max(0, Math.min(100, v ?? 0)) })}
                 />
-                <DateCell value={a.actualStart} onCommit={(v) => onPatch(a.id, { actualStart: v })} />
-                <DateCell value={a.actualFinish} onCommit={(v) => onPatch(a.id, { actualFinish: v })} />
-                <NumCell value={a.remainingDays} nullable onCommit={(v) => onPatch(a.id, { remainingDays: v })} />
+                <DateCell value={a.actualStart} readOnly={!canEdit} onCommit={(v) => onPatch(a.id, { actualStart: v })} />
+                <DateCell value={a.actualFinish} readOnly={!canEdit} onCommit={(v) => onPatch(a.id, { actualFinish: v })} />
+                <NumCell value={a.remainingDays} nullable readOnly={!canEdit} onCommit={(v) => onPatch(a.id, { remainingDays: v })} />
                 <td className="mf-mono px-1 text-right whitespace-nowrap text-mf-text-2">
                   {s ? formatDate(new Date(projectStart.getTime() + s.es * MS_PER_DAY)) : "—"}
                 </td>
@@ -109,7 +112,7 @@ export function ActivityTable({
                     type="button"
                     onClick={() => setLinksFor(a.id)}
                     className="mf-mono flex items-center gap-1 text-[10px] text-mf-accent hover:underline"
-                    title="Edit predecessors"
+                    title={canEdit ? "Edit predecessors" : "View predecessors"}
                   >
                     <Link2 className="size-3" />
                     {preds.length
@@ -121,10 +124,13 @@ export function ActivityTable({
                               }`
                           )
                           .join(", ")
-                      : "add"}
+                      : canEdit
+                        ? "add"
+                        : "—"}
                   </button>
                 </td>
                 <td className="px-1 text-center">
+                  {canEdit && (
                   <button
                     type="button"
                     title="Remove activity"
@@ -135,11 +141,13 @@ export function ActivityTable({
                   >
                     <Trash2 className="size-3" />
                   </button>
+                  )}
                 </td>
               </tr>
             );
           })}
           {/* add row */}
+          {canEdit && (
           <tr className="h-[28px] text-[11px]">
             <td className="px-2">
               <input
@@ -181,6 +189,7 @@ export function ActivityTable({
               </button>
             </td>
           </tr>
+          )}
         </tbody>
       </table>
 
@@ -198,6 +207,7 @@ export function ActivityTable({
               activities={activities}
               links={links.filter((l) => l.successorId === linkTarget.id)}
               codeById={codeById}
+              canEdit={canEdit}
               onAddLink={onAddLink}
               onRemoveLink={onRemoveLink}
             />
@@ -213,6 +223,7 @@ function LinkEditor({
   activities,
   links,
   codeById,
+  canEdit,
   onAddLink,
   onRemoveLink,
 }: {
@@ -220,6 +231,7 @@ function LinkEditor({
   activities: ActivityState[];
   links: LinkState[];
   codeById: Map<string, string>;
+  canEdit: boolean;
   onAddLink: (
     predecessorId: string,
     successorId: string,
@@ -248,20 +260,23 @@ function LinkEditor({
                   {l.lagDays ? `${l.lagDays > 0 ? "+" : ""}${l.lagDays}d` : "0d"}
                 </td>
                 <td className="w-6 text-right">
-                  <button
-                    type="button"
-                    onClick={() => onRemoveLink(l.id)}
-                    className="text-mf-text-2 hover:text-mf-critical"
-                    title="Remove link"
-                  >
-                    <Trash2 className="size-3" />
-                  </button>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => onRemoveLink(l.id)}
+                      className="text-mf-text-2 hover:text-mf-critical"
+                      title="Remove link"
+                    >
+                      <Trash2 className="size-3" />
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+      {canEdit && (
       <div className="flex items-center gap-1">
         <select
           value={predId}
@@ -299,6 +314,7 @@ function LinkEditor({
           <Plus className="size-3" /> Add
         </button>
       </div>
+      )}
     </div>
   );
 }
@@ -306,10 +322,12 @@ function LinkEditor({
 function NumCell({
   value,
   nullable,
+  readOnly,
   onCommit,
 }: {
   value: number | null;
   nullable?: boolean;
+  readOnly?: boolean;
   onCommit: (v: number | null) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
@@ -328,10 +346,16 @@ function NumCell({
     <td className="px-1 text-right">
       <input
         value={shown}
+        readOnly={readOnly}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-        className="mf-mono h-5 w-full min-w-8 border border-transparent bg-transparent px-0.5 text-right text-[11px] outline-none hover:border-mf-border focus:border-mf-accent focus:bg-white"
+        className={cn(
+          "mf-mono h-5 w-full min-w-8 border border-transparent bg-transparent px-0.5 text-right text-[11px] outline-none",
+          readOnly
+            ? "cursor-default text-mf-text-2"
+            : "hover:border-mf-border focus:border-mf-accent focus:bg-white"
+        )}
       />
     </td>
   );
@@ -339,9 +363,11 @@ function NumCell({
 
 function DateCell({
   value,
+  readOnly,
   onCommit,
 }: {
   value: string | null;
+  readOnly?: boolean;
   onCommit: (iso: string | null) => void;
 }) {
   const dateStr = value ? value.slice(0, 10) : "";
@@ -350,6 +376,8 @@ function DateCell({
       <input
         type="date"
         value={dateStr}
+        readOnly={readOnly}
+        disabled={readOnly}
         onChange={(e) => {
           const v = e.target.value;
           onCommit(v ? new Date(`${v}T00:00:00`).toISOString() : null);

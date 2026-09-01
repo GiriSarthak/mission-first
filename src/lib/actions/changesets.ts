@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import type { PhaseKey } from "@/lib/enums";
+import { getAuthorizedProject } from "@/lib/auth/authorize";
 
 type ItemPayload = {
   entityType: "CHECKLIST_ITEM" | "OBLIGATION" | "ACTIVITY" | "INSIGHT";
@@ -38,6 +39,7 @@ export async function applyChangeset(
     where: { id: changesetId },
     include: { items: { orderBy: { id: "asc" } } },
   });
+  await getAuthorizedProject(changeset.projectId, "MANAGE_DOCUMENTS");
   if (changeset.status !== "PROPOSED") {
     return {
       accepted: changeset.items.filter((i) => i.accepted).length,

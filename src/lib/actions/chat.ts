@@ -6,6 +6,7 @@ import {
   answerFromDocumentsPrompt,
   extractKeywords,
 } from "@/lib/ai/prompts/answer-from-documents";
+import { getAuthorizedProject } from "@/lib/auth/authorize";
 
 /**
  * §7.5 — chat without an upload answers from stored DocumentPage text:
@@ -18,6 +19,7 @@ export async function sendChatMessage(
 ): Promise<void> {
   const question = text.trim();
   if (!question) return;
+  await getAuthorizedProject(projectId, "VIEW_PROJECT");
 
   await db.chatMessage.create({
     data: { projectId, role: "USER", content: question },

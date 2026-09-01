@@ -21,7 +21,11 @@ export function StatusSelect({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="h-5 max-w-24 cursor-pointer appearance-none border border-transparent bg-transparent pr-3 text-[11px] text-mf-text-2 outline-none hover:border-mf-border hover:bg-white focus:border-mf-accent"
+        className={
+          disabled
+            ? "h-5 max-w-24 cursor-default appearance-none border border-transparent bg-transparent pr-3 text-[11px] text-mf-text-2 outline-none"
+            : "h-5 max-w-24 cursor-pointer appearance-none border border-transparent bg-transparent pr-3 text-[11px] text-mf-text-2 outline-none hover:border-mf-border hover:bg-white focus:border-mf-accent"
+        }
       >
         {options.map((s) => (
           <option key={s} value={s}>

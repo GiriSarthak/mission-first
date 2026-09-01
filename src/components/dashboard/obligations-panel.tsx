@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { Copy, Loader2, Mail } from "lucide-react";
+import { Copy, Loader2, Mail, MessageSquareReply } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { OBLIGATION_STATUSES, type ObligationStatus } from "@/lib/enums";
-import { setEscalationLevel, updateObligationStatus } from "@/lib/actions/obligations";
+import {
+  respondToObligation,
+  setEscalationLevel,
+  updateObligationStatus,
+} from "@/lib/actions/obligations";
 import { draftEscalationLetter } from "@/lib/actions/letters";
 import { citation } from "@/components/status";
 import { StatusSelect } from "@/components/dashboard/status-select";
@@ -26,20 +30,31 @@ export type ObligationRow = {
   receivedOn: string | null;
   status: string;
   escalationLevel: number;
+  agencyResponseNote: string | null;
+  agencyRespondedAt: string | null;
 };
 
 export function ObligationsPanel({
   projectId,
   obligations,
+  canEditVendorSide,
+  canRespondAgencySide,
+  canDraftLetter,
 }: {
   projectId: string;
   obligations: ObligationRow[];
+  /** vendor side: chase, mark received, escalate */
+  canEditVendorSide: boolean;
+  /** agency side: acknowledge with a note, optionally mark fulfilled */
+  canRespondAgencySide: boolean;
+  canDraftLetter: boolean;
 }) {
   const [, startTransition] = useTransition();
   const [letterFor, setLetterFor] = useState<ObligationRow | null>(null);
   const [letter, setLetter] = useState<string | null>(null);
   const [letterError, setLetterError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [respondTo, setRespondTo] = useState<ObligationRow | null>(null);
 
   async function openLetter(o: ObligationRow) {
     setLetterFor(o);
@@ -91,6 +106,14 @@ export function ObligationsPanel({
                           {citation(o.contractClause, o.sourcePage)}
                         </span>
                       ))}
+                    {o.agencyResponseNote && (
+                      <div
+                        className="mt-0.5 border-l-2 border-mf-border pl-1.5 text-[10px] text-mf-text-2"
+                        title={`Agency response ${formatDate(o.agencyRespondedAt)}`}
+                      >
+                        {o.agencyResponseNote}
+                      </div>
+                    )}
                   </td>
                   <td className="mf-mono w-16 px-2 py-1 text-right align-top text-[11px] whitespace-nowrap text-mf-text-2">
                     {formatDate(o.dueOn)}
@@ -102,6 +125,7 @@ export function ObligationsPanel({
                     <StatusSelect
                       value={o.status}
                       options={OBLIGATION_STATUSES}
+                      disabled={!canEditVendorSide}
                       onChange={(s) =>
                         startTransition(() =>
                           updateObligationStatus(o.id, s as ObligationStatus)
@@ -111,18 +135,31 @@ export function ObligationsPanel({
                     <div className="mt-1 flex items-center gap-1">
                       <EscalationSquares
                         level={o.escalationLevel}
+                        readOnly={!canEditVendorSide}
                         onSet={(lvl) =>
                           startTransition(() => setEscalationLevel(o.id, lvl))
                         }
                       />
-                      <button
-                        type="button"
-                        title="Draft escalation letter"
-                        onClick={() => void openLetter(o)}
-                        className="ml-1 text-mf-text-2 hover:text-mf-accent"
-                      >
-                        <Mail className="size-3.5" />
-                      </button>
+                      {canDraftLetter && (
+                        <button
+                          type="button"
+                          title="Draft escalation letter"
+                          onClick={() => void openLetter(o)}
+                          className="ml-1 text-mf-text-2 hover:text-mf-accent"
+                        >
+                          <Mail className="size-3.5" />
+                        </button>
+                      )}
+                      {canRespondAgencySide && (
+                        <button
+                          type="button"
+                          title="Respond to this request"
+                          onClick={() => setRespondTo(o)}
+                          className="ml-1 text-mf-text-2 hover:text-mf-accent"
+                        >
+                          <MessageSquareReply className="size-3.5" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -131,6 +168,20 @@ export function ObligationsPanel({
           </tbody>
         </table>
       </div>
+
+      {/* agency response modal */}
+      <RespondDialog
+        obligation={respondTo}
+        onClose={() => setRespondTo(null)}
+        onSubmit={(note, markReceived) =>
+          startTransition(() => {
+            if (respondTo) {
+              void respondToObligation(respondTo.id, { note, markReceived });
+            }
+            setRespondTo(null);
+          })
+        }
+      />
 
       {/* escalation letter modal — draft only, copy to send elsewhere */}
       <Dialog open={letterFor != null} onOpenChange={(o) => !o && setLetterFor(null)}>
@@ -177,12 +228,97 @@ export function ObligationsPanel({
   );
 }
 
+/** Agency-side acknowledgement: a note, optionally marking the item fulfilled. */
+function RespondDialog({
+  obligation,
+  onClose,
+  onSubmit,
+}: {
+  obligation: ObligationRow | null;
+  onClose: () => void;
+  onSubmit: (note: string, markReceived: boolean) => void;
+}) {
+  const [note, setNote] = useState("");
+  const [markReceived, setMarkReceived] = useState(false);
+
+  return (
+    <Dialog
+      open={obligation != null}
+      onOpenChange={(o) => {
+        if (!o) {
+          setNote("");
+          setMarkReceived(false);
+          onClose();
+        }
+      }}
+    >
+      <DialogContent className="max-w-md rounded-[2px] p-0">
+        <DialogHeader className="border-b border-mf-border px-3 py-2">
+          <DialogTitle className="mf-heading text-mf-text-1">
+            Agency response — {obligation?.title}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-2 px-3 py-3">
+          {obligation?.agencyResponseNote && (
+            <div className="border-l-2 border-mf-border pl-2 text-[11px] text-mf-text-2">
+              Previous: {obligation.agencyResponseNote}
+            </div>
+          )}
+          <label className="mf-heading text-mf-text-2" htmlFor="response-note">
+            Response note
+          </label>
+          <textarea
+            id="response-note"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={4}
+            placeholder="e.g. Transformer despatch scheduled for 12-Sep; drawings returned under cover of letter no. …"
+            className="w-full resize-none border border-mf-border bg-white px-2 py-1 text-[12px] outline-none focus:border-mf-accent"
+          />
+          <label className="flex items-center gap-1.5 text-[11px] text-mf-text-1">
+            <input
+              type="checkbox"
+              checked={markReceived}
+              onChange={(e) => setMarkReceived(e.target.checked)}
+              className="size-3 accent-[#2f5f8f]"
+            />
+            Mark this deliverable as fulfilled
+          </label>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-mf-border px-3 py-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="border border-mf-border bg-white px-3 py-1 text-[11px] text-mf-text-1 hover:bg-mf-surface-1"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!note.trim() && !markReceived}
+            onClick={() => {
+              onSubmit(note, markReceived);
+              setNote("");
+              setMarkReceived(false);
+            }}
+            className="border border-mf-accent bg-mf-accent px-3 py-1 text-[11px] text-white hover:bg-mf-accent-hover disabled:opacity-50"
+          >
+            Record response
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function EscalationSquares({
   level,
   onSet,
+  readOnly,
 }: {
   level: number;
   onSet: (level: number) => void;
+  readOnly?: boolean;
 }) {
   return (
     <span className="flex gap-0.5" title={`Escalation level ${level} of 3 — click to set`}>
@@ -190,8 +326,9 @@ function EscalationSquares({
         <button
           key={i}
           type="button"
+          disabled={readOnly}
           onClick={() => onSet(i === level ? i - 1 : i)}
-          className="inline-block size-2 border border-mf-border"
+          className="inline-block size-2 border border-mf-border disabled:cursor-default"
           style={{ background: i <= level ? "var(--mf-critical)" : "transparent" }}
         />
       ))}

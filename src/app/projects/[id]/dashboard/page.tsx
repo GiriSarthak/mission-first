@@ -1,8 +1,10 @@
+import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { ChecklistPanel } from "@/components/dashboard/checklist-panel";
 import { ObligationsPanel } from "@/components/dashboard/obligations-panel";
 import { InsightsPanel } from "@/components/dashboard/insights-panel";
 import { SchedulePanel } from "@/components/schedule/schedule-panel";
+import { AuthorizationError, getAuthorizedProject } from "@/lib/auth/authorize";
 
 export const dynamic = "force-dynamic";
 
@@ -14,30 +16,45 @@ export default async function DashboardPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
+  let ctx;
+  try {
+    ctx = await getAuthorizedProject(id, "VIEW_PROJECT");
+  } catch (err) {
+    if (err instanceof AuthorizationError) notFound();
+    throw err;
+  }
+
+  const perms = {
+    editProjectData: ctx.can("EDIT_PROJECT_DATA"),
+    markObligationVendorSide: ctx.can("MARK_OBLIGATION_VENDOR_SIDE"),
+    respondObligationAgencySide: ctx.can("RESPOND_OBLIGATION_AGENCY_SIDE"),
+    approveAgencyItems: ctx.can("APPROVE_AGENCY_ITEMS"),
+    draftLetter: ctx.can("DRAFT_ESCALATION_LETTER"),
+    regenerateInsights: ctx.can("REGENERATE_INSIGHTS"),
+  };
+
   const [project, phases, obligations, insights, activities, links] =
     await Promise.all([
       db.project.findUnique({ where: { id } }),
-    db.checklistPhase.findMany({
-      where: { projectId: id },
-      orderBy: { sortOrder: "asc" },
-      include: { items: { orderBy: { createdAt: "asc" } } },
-    }),
-    db.obligation.findMany({
-      where: { projectId: id, owedBy: "AGENCY" },
-      orderBy: { requestedOn: "asc" },
-    }),
-    db.insight.findMany({
-      where: { projectId: id, status: "OPEN" },
-      orderBy: { createdAt: "asc" },
-    }),
-    db.activity.findMany({ where: { projectId: id }, orderBy: { code: "asc" } }),
-    db.activityLink.findMany({
-      where: { predecessor: { projectId: id } },
-    }),
-  ]);
+      db.checklistPhase.findMany({
+        where: { projectId: id },
+        orderBy: { sortOrder: "asc" },
+        include: { items: { orderBy: { createdAt: "asc" } } },
+      }),
+      db.obligation.findMany({
+        where: { projectId: id, owedBy: "AGENCY" },
+        orderBy: { requestedOn: "asc" },
+      }),
+      db.insight.findMany({
+        where: { projectId: id, status: "OPEN" },
+        orderBy: { createdAt: "asc" },
+      }),
+      db.activity.findMany({ where: { projectId: id }, orderBy: { code: "asc" } }),
+      db.activityLink.findMany({ where: { predecessor: { projectId: id } } }),
+    ]);
 
-  const pickPhases = (keys: string[]) =>
-    phases.filter((p) => keys.includes(p.key));
+  const pickPhases = (keys: string[]) => phases.filter((p) => keys.includes(p.key));
 
   const serializeItems = (keys: string[]) =>
     pickPhases(keys)
@@ -51,6 +68,8 @@ export default async function DashboardPage({
         sourceClause: it.sourceClause,
         sourcePage: it.sourcePage,
         sourceDocumentId: it.sourceDocumentId,
+        requiresAgencyApproval: it.requiresAgencyApproval,
+        approvedAt: it.approvedAt?.toISOString() ?? null,
       }));
 
   const serializePhases = (keys: string[]) =>
@@ -68,15 +87,22 @@ export default async function DashboardPage({
           title="Pre-Bid Documentation"
           phases={serializePhases(["PRE_BID", "BID_SUBMISSION"])}
           items={serializeItems(["PRE_BID", "BID_SUBMISSION"])}
+          canEdit={perms.editProjectData}
+          canApprove={perms.approveAgencyItems}
         />
         <ChecklistPanel
           projectId={id}
           title="Scope of Work Elements"
           phases={serializePhases(["SOW", "EXECUTION"])}
           items={serializeItems(["SOW", "EXECUTION"])}
+          canEdit={perms.editProjectData}
+          canApprove={perms.approveAgencyItems}
         />
         <ObligationsPanel
           projectId={id}
+          canEditVendorSide={perms.markObligationVendorSide}
+          canRespondAgencySide={perms.respondObligationAgencySide}
+          canDraftLetter={perms.draftLetter}
           obligations={obligations.map((o) => ({
             id: o.id,
             title: o.title,
@@ -87,12 +113,15 @@ export default async function DashboardPage({
             receivedOn: o.receivedOn?.toISOString() ?? null,
             status: o.status,
             escalationLevel: o.escalationLevel,
+            agencyResponseNote: o.agencyResponseNote,
+            agencyRespondedAt: o.agencyRespondedAt?.toISOString() ?? null,
           }))}
         />
       </div>
 
       <InsightsPanel
         projectId={id}
+        canRegenerate={perms.regenerateInsights}
         insights={sortedInsights.map((ins) => ({
           id: ins.id,
           title: ins.title,
@@ -108,6 +137,7 @@ export default async function DashboardPage({
 
       <SchedulePanel
         projectId={id}
+        canEdit={perms.editProjectData}
         contractStart={project?.contractStart?.toISOString() ?? null}
         contractDurationDays={project?.contractDurationDays ?? null}
         initialActivities={activities.map((a) => ({

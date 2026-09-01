@@ -3,6 +3,10 @@
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { LINK_TYPES, type LinkType } from "@/lib/enums";
+import {
+  authorizeByActivity,
+  getAuthorizedProject,
+} from "@/lib/auth/authorize";
 
 export type ActivityPatch = {
   name?: string;
@@ -16,6 +20,7 @@ export type ActivityPatch = {
 };
 
 export async function updateActivity(id: string, patch: ActivityPatch): Promise<void> {
+  await authorizeByActivity(id, "EDIT_PROJECT_DATA");
   const a = await db.activity.update({
     where: { id },
     data: {
@@ -42,6 +47,7 @@ export async function createActivity(
   projectId: string,
   input: { code: string; name: string; mostLikely: number }
 ): Promise<{ id: string } | { error: string }> {
+  await getAuthorizedProject(projectId, "EDIT_PROJECT_DATA");
   const code = input.code.trim();
   const name = input.name.trim();
   if (!code || !name) return { error: "Code and name are required." };
@@ -63,6 +69,7 @@ export async function createActivity(
 }
 
 export async function deleteActivity(id: string): Promise<void> {
+  await authorizeByActivity(id, "EDIT_PROJECT_DATA");
   const a = await db.activity.delete({ where: { id } });
   revalidatePath(`/projects/${a.projectId}/dashboard`);
 }
@@ -75,6 +82,8 @@ export async function createLink(
 ): Promise<{ id: string } | { error: string }> {
   if (!LINK_TYPES.includes(type)) return { error: "Invalid link type." };
   if (predecessorId === successorId) return { error: "An activity cannot link to itself." };
+  await authorizeByActivity(predecessorId, "EDIT_PROJECT_DATA");
+  await authorizeByActivity(successorId, "EDIT_PROJECT_DATA");
   const existing = await db.activityLink.findUnique({
     where: {
       predecessorId_successorId_type: { predecessorId, successorId, type },
@@ -91,6 +100,9 @@ export async function createLink(
 }
 
 export async function deleteLink(id: string): Promise<void> {
+  const existing = await db.activityLink.findUnique({ where: { id } });
+  if (!existing) return;
+  await authorizeByActivity(existing.predecessorId, "EDIT_PROJECT_DATA");
   const link = await db.activityLink.delete({
     where: { id },
     include: { predecessor: true },

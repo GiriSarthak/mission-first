@@ -15,6 +15,7 @@ export function SettingsForm({
   projectId,
   initial,
   models,
+  canEdit,
 }: {
   projectId: string;
   initial: {
@@ -25,6 +26,8 @@ export function SettingsForm({
     contractDurationDays: number | null;
   };
   models: { heavy: string; light: string };
+  /** agency roles view project settings but cannot change them */
+  canEdit: boolean;
 }) {
   const [form, setForm] = useState(initial);
   const [saved, setSaved] = useState(false);
@@ -33,8 +36,9 @@ export function SettingsForm({
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
-  const field =
-    "h-[26px] w-full border border-mf-border bg-white px-2 text-[12px] outline-none focus:border-mf-accent";
+  const field = canEdit
+    ? "h-[26px] w-full border border-mf-border bg-white px-2 text-[12px] outline-none focus:border-mf-accent"
+    : "h-[26px] w-full border border-mf-border bg-mf-surface-1 px-2 text-[12px] text-mf-text-2 outline-none";
   const label = "mf-heading mb-1 block text-mf-text-2";
 
   return (
@@ -48,6 +52,7 @@ export function SettingsForm({
             <label className={label}>Project name</label>
             <input
               className={field}
+              disabled={!canEdit}
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
@@ -56,6 +61,7 @@ export function SettingsForm({
             <label className={label}>Tender ref</label>
             <input
               className={`${field} font-mono text-[11px]`}
+              disabled={!canEdit}
               value={form.tenderRef}
               onChange={(e) => setForm({ ...form, tenderRef: e.target.value })}
             />
@@ -64,6 +70,7 @@ export function SettingsForm({
             <label className={label}>Agency</label>
             <input
               className={field}
+              disabled={!canEdit}
               value={form.agencyName}
               onChange={(e) => setForm({ ...form, agencyName: e.target.value })}
             />
@@ -73,6 +80,7 @@ export function SettingsForm({
             <input
               type="date"
               className={`${field} font-mono text-[11px]`}
+              disabled={!canEdit}
               value={form.contractStart ?? ""}
               onChange={(e) =>
                 setForm({ ...form, contractStart: e.target.value || null })
@@ -84,6 +92,7 @@ export function SettingsForm({
             <input
               type="number"
               className={`${field} text-right font-mono text-[11px]`}
+              disabled={!canEdit}
               value={form.contractDurationDays ?? ""}
               onChange={(e) =>
                 setForm({
@@ -96,7 +105,7 @@ export function SettingsForm({
           <div className="col-span-2 flex items-center gap-2">
             <button
               type="button"
-              disabled={pending}
+              disabled={pending || !canEdit}
               onClick={() =>
                 startTransition(async () => {
                   await updateProjectSettings(projectId, form);
@@ -131,6 +140,7 @@ export function SettingsForm({
         </div>
       </div>
 
+      {canEdit && (
       <div className="mf-panel">
         <div className="mf-panel-header">
           <span className="mf-panel-title">Danger Zone</span>
@@ -149,6 +159,7 @@ export function SettingsForm({
           </span>
         </div>
       </div>
+      )}
 
       <Dialog open={confirmReset} onOpenChange={setConfirmReset}>
         <DialogContent className="max-w-sm rounded-[2px] p-0">
