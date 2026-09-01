@@ -590,6 +590,16 @@ async function main() {
     ],
   });
 
+  // Backfill trend history so the Time & Cost panel has a line, not a dot.
+  await backfillSnapshots(project.id, {
+    contractValue: 227142147,
+    ldWeeklyRatePct: 0.5,
+    ldCapPct: 10,
+    finalDelayDays: 38,
+    finalAgencyPct: 65.8,
+    contractFinish: day(540, contractStart),
+  });
+
   await seedSecondProject(agencyOrg.id, vendorOrg2.id);
 
   console.log(`Seeded project ${project.id} (${project.name}).`);
@@ -597,6 +607,50 @@ async function main() {
   console.log("Demo sign-ins (password for all: " + DEMO_PASSWORD + ")");
   for (const u of users) {
     console.log(`  ${u.role.padEnd(16)} ${u.email}`);
+  }
+}
+
+/**
+ * Synthetic snapshot history: 14 fortnightly points showing the delay
+ * emerging and growing to its current value, so the trend chart is populated
+ * on a fresh install. Real snapshots are written on every recompute from then
+ * on (src/lib/analysis/snapshot.ts).
+ */
+async function backfillSnapshots(
+  projectId: string,
+  cfg: {
+    contractValue: number;
+    ldWeeklyRatePct: number;
+    ldCapPct: number;
+    finalDelayDays: number;
+    finalAgencyPct: number;
+    contractFinish: Date;
+  }
+) {
+  const POINTS = 14;
+  const INTERVAL_DAYS = 14;
+  for (let i = POINTS - 1; i >= 0; i--) {
+    const capturedAt = daysAgo(i * INTERVAL_DAYS);
+    // delay ramps from 0 up to the current value, easing in
+    const progress = (POINTS - 1 - i) / (POINTS - 1);
+    const delayDays = Math.round(cfg.finalDelayDays * Math.pow(progress, 1.7));
+    const pct = Math.min(
+      cfg.ldCapPct,
+      (delayDays / 7) * cfg.ldWeeklyRatePct
+    );
+    const ldExposure = (pct / 100) * cfg.contractValue;
+    // the agency share grows as the equipment obligation runs further overdue
+    const agencyPct = delayDays === 0 ? 0 : cfg.finalAgencyPct * (0.55 + 0.45 * progress);
+    await db.scheduleSnapshot.create({
+      data: {
+        projectId,
+        capturedAt,
+        forecastFinishDate: day(delayDays, cfg.contractFinish),
+        delayDays,
+        ldExposure,
+        agencyAttributablePct: Math.min(100, agencyPct),
+      },
+    });
   }
 }
 
@@ -729,6 +783,15 @@ async function seedSecondProject(agencyOrgId: string, vendorOrgId: string) {
       category: "OBLIGATION",
       status: "OPEN",
     },
+  });
+
+  await backfillSnapshots(project.id, {
+    contractValue: 48600000,
+    ldWeeklyRatePct: 0.5,
+    ldCapPct: 10,
+    finalDelayDays: 15,
+    finalAgencyPct: 46.7,
+    contractFinish: day(200, contractStart),
   });
 
   console.log(`Seeded second project ${project.id} (${project.name}).`);

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { OBLIGATION_STATUSES, type ObligationStatus } from "@/lib/enums";
 import { authorizeByObligation } from "@/lib/auth/authorize";
+import { recordScheduleSnapshot } from "@/lib/analysis/snapshot";
 
 export async function updateObligationStatus(
   obligationId: string,
@@ -21,6 +22,7 @@ export async function updateObligationStatus(
       receivedOn: status === "RECEIVED" ? new Date() : null,
     },
   });
+  await recordScheduleSnapshot(project.id);
   revalidatePath(`/projects/${project.id}/dashboard`);
 }
 
@@ -63,6 +65,7 @@ export async function respondToObligation(
         : {}),
     },
   });
+  await recordScheduleSnapshot(project.id);
   revalidatePath(`/projects/${project.id}/dashboard`);
   revalidatePath("/portfolio");
 }

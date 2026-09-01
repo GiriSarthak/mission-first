@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { deleteDocumentFile } from "@/lib/storage";
 import { getAuthorizedProject } from "@/lib/auth/authorize";
+import { recordScheduleSnapshot } from "@/lib/analysis/snapshot";
 
 export async function updateProjectSettings(
   projectId: string,
@@ -28,6 +29,7 @@ export async function updateProjectSettings(
       contractDurationDays: input.contractDurationDays,
     },
   });
+  await recordScheduleSnapshot(projectId);
   revalidatePath(`/projects/${projectId}`, "layout");
 }
 

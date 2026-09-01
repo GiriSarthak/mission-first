@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import type { PhaseKey } from "@/lib/enums";
 import { getAuthorizedProject } from "@/lib/auth/authorize";
+import { recordScheduleSnapshot } from "@/lib/analysis/snapshot";
 
 type ItemPayload = {
   entityType: "CHECKLIST_ITEM" | "OBLIGATION" | "ACTIVITY" | "INSIGHT";
@@ -200,6 +201,7 @@ export async function applyChangeset(
     },
   });
 
+  await recordScheduleSnapshot(changeset.projectId);
   revalidatePath(`/projects/${changeset.projectId}/dashboard`);
   revalidatePath(`/projects/${changeset.projectId}/documents`);
   return { accepted, rejected };

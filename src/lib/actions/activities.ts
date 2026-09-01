@@ -7,6 +7,7 @@ import {
   authorizeByActivity,
   getAuthorizedProject,
 } from "@/lib/auth/authorize";
+import { recordScheduleSnapshot } from "@/lib/analysis/snapshot";
 
 export type ActivityPatch = {
   name?: string;
@@ -40,6 +41,7 @@ export async function updateActivity(id: string, patch: ActivityPatch): Promise<
       ...(patch.remainingDays !== undefined && { remainingDays: patch.remainingDays }),
     },
   });
+  await recordScheduleSnapshot(a.projectId);
   revalidatePath(`/projects/${a.projectId}/dashboard`);
 }
 
@@ -64,6 +66,7 @@ export async function createActivity(
       sourceType: "MANUAL",
     },
   });
+  await recordScheduleSnapshot(projectId);
   revalidatePath(`/projects/${projectId}/dashboard`);
   return { id: a.id };
 }
@@ -71,6 +74,7 @@ export async function createActivity(
 export async function deleteActivity(id: string): Promise<void> {
   await authorizeByActivity(id, "EDIT_PROJECT_DATA");
   const a = await db.activity.delete({ where: { id } });
+  await recordScheduleSnapshot(a.projectId);
   revalidatePath(`/projects/${a.projectId}/dashboard`);
 }
 
@@ -95,6 +99,7 @@ export async function createLink(
   const link = await db.activityLink.create({
     data: { predecessorId, successorId, type, lagDays },
   });
+  await recordScheduleSnapshot(pred.projectId);
   revalidatePath(`/projects/${pred.projectId}/dashboard`);
   return { id: link.id };
 }
@@ -107,5 +112,6 @@ export async function deleteLink(id: string): Promise<void> {
     where: { id },
     include: { predecessor: true },
   });
+  await recordScheduleSnapshot(link.predecessor.projectId);
   revalidatePath(`/projects/${link.predecessor.projectId}/dashboard`);
 }
