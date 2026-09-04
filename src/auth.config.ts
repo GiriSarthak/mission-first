@@ -12,6 +12,9 @@ import type { Role } from "@/lib/auth/roles";
 export const authConfig = {
   pages: { signIn: "/login" },
   session: { strategy: "jwt" },
+  // Self-hosted behind nginx: the origin arrives via X-Forwarded-* headers,
+  // so Auth.js must be told to trust them or every callback URL is wrong.
+  trustHost: true,
   providers: [],
   callbacks: {
     jwt({ token, user }) {

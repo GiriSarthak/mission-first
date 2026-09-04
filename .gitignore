@@ -1,11 +1,13 @@
 # secrets
 .env
 .env.local
+.env.production
 
 # dependencies and build
 node_modules/
 .next/
 out/
+tsconfig.tsbuildinfo
 
 # database, uploads, samples
 *.db
@@ -13,6 +15,9 @@ out/
 storage/
 samples/
 
+# runtime
+logs/
+*.log
+
 # misc
 .DS_Store
-*.logtsconfig.tsbuildinfo
