@@ -53,6 +53,15 @@ Demo sign-ins (all use `DEMO_PASSWORD`, default `missionfirst`, printed on seed)
 - `ScheduleSnapshot` is written by `recordScheduleSnapshot` (`src/lib/analysis/snapshot.ts`) from every action that moves the forecast or attribution — activity and link mutations, obligation status/response, changeset apply, contract settings. Consecutive identical points are skipped; snapshot failures never block the user's edit. Seed backfills 14 fortnightly points per project.
 - `/portfolio` is the agency home: one row per vendor project with the same figures, sorted by delay descending. Read-only triage.
 
+## Obligation escalation (rule-based)
+
+`src/lib/obligations/escalation.ts` is pure and unit-tested. **One rung per 7 days past the due date, capped at 3:** 0–6 days → 0, 7–13 → 1, 14–20 → 2, 21+ → 3. Received and waived obligations stop accruing.
+
+- The rule is a **floor, not an absolute**. A vendor may escalate ahead of the clock and that is preserved; nobody can de-escalate below the floor (`setEscalationLevel` clamps up to it, and the UI recomputes). The machine never de-escalates.
+- **Displayed level and status are always computed live**, so the UI is right even if nothing has been persisted. `effectiveObligationStatus` also derives `OVERDUE` from `dueOn` — previously the panel could show a red "+10d" next to a "Pending" pill, because status was a stored field only a human changed.
+- **There is no scheduler on this deployment**, so `sweepObligationEscalations` (`src/lib/obligations/sweep.ts`) runs lazily on dashboard and portfolio load and raises the stored column. Persisting matters because the escalation-letter prompt and the insights snapshot read the stored value. The sweep only ever raises, and never throws — a failed sweep must not take a dashboard down.
+- The letter's tone still scales with the level (1 reminder → 2 rights-reserved → 3 final notice), and letters remain **draft-only**: no email/SMS, per BRIEF §10. Elevation changes what the letter says and what the insights report; sending is still a human step.
+
 ## Stack & architecture
 
 - Next.js 15 App Router + TypeScript, `src/` dir, `@/*` alias. Server Actions for mutations, Route Handlers for jobs/uploads.

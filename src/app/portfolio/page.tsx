@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { currentUser, visibleProjects } from "@/lib/auth/authorize";
 import { computeProjectDelayCost } from "@/lib/analysis/snapshot";
+import { sweepProjects } from "@/lib/obligations/sweep";
 import {
   computeSchedule,
   finishProbability,
@@ -24,6 +25,9 @@ export default async function PortfolioPage() {
   if (user.orgType !== "AGENCY") redirect("/");
 
   const projects = await visibleProjects(user);
+
+  // Rule-based escalation across the whole portfolio before the figures are read.
+  await sweepProjects(projects.map((p) => p.id));
 
   const rows: PortfolioRow[] = await Promise.all(
     projects.map(async (p) => {

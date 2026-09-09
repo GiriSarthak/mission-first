@@ -5,6 +5,11 @@ import { revalidatePath } from "next/cache";
 import { OBLIGATION_STATUSES, type ObligationStatus } from "@/lib/enums";
 import { authorizeByObligation } from "@/lib/auth/authorize";
 import { recordScheduleSnapshot } from "@/lib/analysis/snapshot";
+import {
+  MAX_ESCALATION_LEVEL,
+  daysOverdue,
+  ruleEscalationLevel,
+} from "@/lib/obligations/escalation";
 
 export async function updateObligationStatus(
   obligationId: string,
@@ -34,7 +39,15 @@ export async function setEscalationLevel(
     obligationId,
     "MARK_OBLIGATION_VENDOR_SIDE"
   );
-  const clamped = Math.max(0, Math.min(3, Math.round(level)));
+  // A human may escalate ahead of the clock, but never below the rule's
+  // floor — an obligation 21 days overdue cannot be clicked back down to 1.
+  const existing = await db.obligation.findUniqueOrThrow({
+    where: { id: obligationId },
+    select: { dueOn: true, receivedOn: true, status: true },
+  });
+  const floor = ruleEscalationLevel(daysOverdue(existing));
+  const requested = Math.max(0, Math.min(MAX_ESCALATION_LEVEL, Math.round(level)));
+  const clamped = Math.max(floor, requested);
   await db.obligation.update({
     where: { id: obligationId },
     data: { escalationLevel: clamped },

@@ -5,6 +5,7 @@ import { complete } from "@/lib/ai/client";
 import { escalationLetterPrompt } from "@/lib/ai/prompts/escalation-letter";
 import { formatDate, daysBetween } from "@/lib/format";
 import { authorizeByObligation } from "@/lib/auth/authorize";
+import { effectiveEscalationLevel } from "@/lib/obligations/escalation";
 
 /** §7.6 — drafts formal escalation correspondence. Draft only, never sent. */
 export async function draftEscalationLetter(
@@ -54,7 +55,9 @@ export async function draftEscalationLetter(
               requestedOn: obligation.requestedOn ? formatDate(obligation.requestedOn) : null,
               dueOn: obligation.dueOn ? formatDate(obligation.dueOn) : null,
               daysOverdue,
-              escalationLevel: Math.max(1, obligation.escalationLevel),
+              // Rule-derived, so the tone matches the clock even if the
+              // stored level has not been swept yet.
+              escalationLevel: Math.max(1, effectiveEscalationLevel(obligation, today)),
             },
             clauseExcerpt,
           }),

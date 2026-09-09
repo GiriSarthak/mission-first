@@ -7,6 +7,7 @@ import { SchedulePanel } from "@/components/schedule/schedule-panel";
 import { TimeCostPanel } from "@/components/dashboard/time-cost-panel";
 import { AuthorizationError, getAuthorizedProject } from "@/lib/auth/authorize";
 import { computeProjectDelayCost } from "@/lib/analysis/snapshot";
+import { sweepObligationEscalations } from "@/lib/obligations/sweep";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,9 @@ export default async function DashboardPage({
     draftLetter: ctx.can("DRAFT_ESCALATION_LETTER"),
     regenerateInsights: ctx.can("REGENERATE_INSIGHTS"),
   };
+
+  // Rule-based escalation: raise any level the clock has earned before we read.
+  await sweepObligationEscalations(id);
 
   const [project, phases, obligations, insights, activities, links] =
     await Promise.all([

@@ -19,6 +19,14 @@ import { draftEscalationLetter } from "@/lib/actions/letters";
 import { citation } from "@/components/status";
 import { StatusSelect } from "@/components/dashboard/status-select";
 import { formatDate } from "@/lib/format";
+import {
+  daysOverdue as computeDaysOverdue,
+  daysToNextEscalation,
+  effectiveEscalationLevel,
+  effectiveObligationStatus,
+  ESCALATION_INTERVAL_DAYS,
+  MAX_ESCALATION_LEVEL,
+} from "@/lib/obligations/escalation";
 
 export type ObligationRow = {
   id: string;
@@ -85,10 +93,11 @@ export function ObligationsPanel({
         <table className="w-full border-collapse">
           <tbody>
             {obligations.map((o) => {
-              const overdueDays =
-                o.dueOn && !o.receivedOn
-                  ? Math.round((today.getTime() - new Date(o.dueOn).setHours(0, 0, 0, 0)) / 86_400_000)
-                  : 0;
+              // All three come from the same tested rule module.
+              const overdueDays = computeDaysOverdue(o, today);
+              const shownStatus = effectiveObligationStatus(o, today);
+              const shownLevel = effectiveEscalationLevel(o, today);
+              const nextIn = daysToNextEscalation(o, today);
               return (
                 <tr key={o.id} className="border-b border-mf-gridline hover:bg-[#f8f9fb]">
                   <td className="px-2 py-1 align-top">
@@ -123,7 +132,7 @@ export function ObligationsPanel({
                   </td>
                   <td className="w-25 px-2 py-1 align-top">
                     <StatusSelect
-                      value={o.status}
+                      value={shownStatus}
                       options={OBLIGATION_STATUSES}
                       disabled={!canEditVendorSide}
                       onChange={(s) =>
@@ -134,7 +143,9 @@ export function ObligationsPanel({
                     />
                     <div className="mt-1 flex items-center gap-1">
                       <EscalationSquares
-                        level={o.escalationLevel}
+                        level={shownLevel}
+                        overdueDays={overdueDays}
+                        nextIn={nextIn}
                         readOnly={!canEditVendorSide}
                         onSet={(lvl) =>
                           startTransition(() => setEscalationLevel(o.id, lvl))
@@ -311,17 +322,42 @@ function RespondDialog({
   );
 }
 
+/**
+ * Escalation ladder. The level shown is whichever is higher: what the clock
+ * has earned (one rung per 7 days overdue, capped at 3) or what a vendor set
+ * manually. Clicking raises it ahead of the clock; it cannot be dragged below
+ * the rule's floor, so the buttons below that floor are inert.
+ */
 function EscalationSquares({
   level,
+  overdueDays,
+  nextIn,
   onSet,
   readOnly,
 }: {
   level: number;
+  overdueDays: number;
+  nextIn: number | null;
   onSet: (level: number) => void;
   readOnly?: boolean;
 }) {
+  const title = [
+    `Escalation level ${level} of ${MAX_ESCALATION_LEVEL}`,
+    overdueDays > 0
+      ? `${overdueDays} day${overdueDays === 1 ? "" : "s"} overdue — one level per ${ESCALATION_INTERVAL_DAYS} days`
+      : "not overdue",
+    nextIn != null
+      ? `level ${level + 1} in ${nextIn} day${nextIn === 1 ? "" : "s"}`
+      : level >= MAX_ESCALATION_LEVEL
+        ? "at the top of the ladder"
+        : null,
+    readOnly ? null : "click to escalate ahead of schedule",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <span className="flex gap-0.5" title={`Escalation level ${level} of 3 — click to set`}>
+    <span className="flex gap-0.5" title={title}>
       {[1, 2, 3].map((i) => (
         <button
           key={i}
